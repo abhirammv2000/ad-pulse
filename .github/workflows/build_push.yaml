@@ -31,7 +31,7 @@ jobs:
     bump-version:
       needs: check-changes-and-build
       runs-on: ubuntu-latest
-      if: needs.check-changes-and-build.outputs.folders
+      if: needs.check-changes-and-build.outputs.folders != ''
 
       steps:
         - name: Checkout code
