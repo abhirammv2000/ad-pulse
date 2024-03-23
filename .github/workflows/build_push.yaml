@@ -61,7 +61,7 @@ jobs:
           run: |
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
-            git add version.txt
+            git add .
             git commit -m "Bump version to $new_version"
             git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
 
