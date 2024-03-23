@@ -24,13 +24,12 @@ jobs:
           id: list_folders
           run: |
                 find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
-                echo "$dir"
+                echo "::set-env name=FOLDERS::$dir"
                 done
 
         - name: get folder name
           run: |
-            folders="${{ steps.list_folders.outputs.stdout }}"
-            echo "Folders: $folders"
+            echo "Folders: $FOLDERS"
 
         - name: Bump version
           if: steps.list_folders.outputs.stdout != ''
