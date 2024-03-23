@@ -25,8 +25,10 @@ jobs:
                 fi
                 done
 
-        - name: Checkout code
-          uses: actions/checkout@v2
+        - name: get folder name
+          run: |
+            folders="${{ steps.list_folders.outputs.stdout }}"
+            echo "Folders: $folders"
 
         - name: Bump version
           if: steps.list_folders.outputs.stdout != ''
