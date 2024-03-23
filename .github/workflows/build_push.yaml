@@ -29,17 +29,19 @@ jobs:
         - name: Get list of folders
           id: list_folders
           run: |
+                changed_dirs=""
                 find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
                 if [[ -n $(git diff --name-only HEAD^ HEAD  -- $dir) ]]; then
-                  echo "$dir"
+                  changed_dirs="$changed_dirs$dir "
                 fi
                 done
+                echo "::set-env name=FOLDERS::$changed_dirs"
         
         - name: Check if there are changes
           if: ${{ steps.list_folders.outputs.stdout }} != ''
           run: |
             echo "Changes detected in the following folders:"
-            echo "${{ steps.list_folders.outputs.stdout }}"
+            echo "$FOLDERS"
 
         - name: Bump version
           if: ${{ steps.list_folders.outputs.stdout }} != ''
