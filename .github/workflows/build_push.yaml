@@ -29,23 +29,21 @@ jobs:
         - name: Get list of folders
           id: list_folders
           run: |
-                changed_dirs=""
                 find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
                 if [[ -n $(git diff --name-only HEAD^ HEAD  -- $dir) ]]; then
-                  changed_dirs="$changed_dirs$dir "
+                  echo "::set-env name=FOLDERS::$dir"
                 fi
                 done
-                echo "::set-env name=FOLDERS::$changed_dirs"
-        
-        - name: Check if there are changes
-          if: ${{ steps.list_folders.outputs.stdout }} != ''
+
+        - name: get folder name
           run: |
-            echo "Changes detected in the following folders:"
-            echo "$FOLDERS"
+            echo "Folders: $FOLDERS"
 
         - name: Bump version
-          if: ${{ steps.list_folders.outputs.stdout }} != ''
+          if: steps.list_folders.outputs.stdout != ''
           run: |
+                folders="${{ steps.list_folders.outputs.stdout }}"
+                echo "Folders: $folders"
                 while read -r dir; do
                   echo "Processing $dir"
                   old_version=$(cat $dir/version.txt)
@@ -62,7 +60,7 @@ jobs:
                   else
                       echo "Invalid version format: $old_version"
                   fi
-                done <<< "${{ steps.list_folders.outputs.stdout }}"
+                done <<< "$folders"
 
         - name: Commit changes
           if: steps.list_folders.outputs.stdout != ''
@@ -87,7 +85,7 @@ jobs:
               docker buildx build \
                 --platform linux/amd64,linux/arm64 \
                 --push \
-                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$dir/$(cat version.txt) \
+                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
                 -f $dir/Dockerfile \
                 $dir
             done <<< "$folders"
