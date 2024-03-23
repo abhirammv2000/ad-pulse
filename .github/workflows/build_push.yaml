@@ -12,6 +12,8 @@ env:
 jobs:
     check-changes-and-build:
       runs-on: ubuntu-latest
+      outputs:
+        folders: ${{ steps.list_folders.outputs.folders }}
       steps:
         - name: Checkout code
           uses: actions/checkout@v2
@@ -29,7 +31,7 @@ jobs:
     bump-version:
       needs: check-changes-and-build
       runs-on: ubuntu-latest
-      if: needs.check-changes-and-build.outputs.folders != ''
+      if: needs.check-changes-and-build.outputs.folders
 
       steps:
         - name: Checkout code
