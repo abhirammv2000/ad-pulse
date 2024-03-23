@@ -31,16 +31,16 @@ jobs:
           run: |
                 find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
                 if [[ -n $(git diff --name-only HEAD^ HEAD  -- $dir) ]]; then
-                  echo "::set-env name=FOLDERS::$dir"
+                  echo "$dir"
                 fi
                 done
 
         - name: get folder name
           run: |
-            echo "Folders: $FOLDERS"
+            echo "${{ steps.list_folders.outputs.stdout }}"
 
         - name: Bump version
-          if: steps.list_folders.outputs.stdout != ''
+          if: ${{ steps.list_folders.outputs.stdout }} != ''
           run: |
                 folders="${{ steps.list_folders.outputs.stdout }}"
                 echo "Folders: $folders"
