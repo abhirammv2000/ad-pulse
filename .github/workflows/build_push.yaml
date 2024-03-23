@@ -34,6 +34,12 @@ jobs:
                   echo "$dir"
                 fi
                 done
+        
+        - name: Check if there are changes
+          if: ${{ steps.list_folders.outputs.stdout }} != ''
+          run: |
+            echo "Changes detected in the following folders:"
+            echo "${{ steps.list_folders.outputs.stdout }}"
 
         - name: Bump version
           if: ${{ steps.list_folders.outputs.stdout }} != ''
@@ -79,7 +85,7 @@ jobs:
               docker buildx build \
                 --platform linux/amd64,linux/arm64 \
                 --push \
-                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
+                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$dir/$(cat version.txt) \
                 -f $dir/Dockerfile \
                 $dir
             done <<< "$folders"
