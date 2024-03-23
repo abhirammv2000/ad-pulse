@@ -8,4 +8,7 @@ def create_app():
     from app.cache import cache_blueprint
     app.register_blueprint(cache_blueprint)
 
+    from app.routes.publisher_routes import publisher_blueprint
+    app.register_blueprint(publisher_blueprint)
+
     return app
