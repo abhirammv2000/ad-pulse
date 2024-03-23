@@ -19,12 +19,10 @@ jobs:
         - name: Get list of folders
           id: list_folders
           run: |
-            folders=$(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
+            (find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
               if [[ -n $(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- $dir) ]]; then
                 echo "$dir"
               fi
-            done)
-            echo "::set-output name=folders::$folders"
 
         - name: Checkout code
           uses: actions/checkout@v2
