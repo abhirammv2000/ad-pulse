@@ -38,6 +38,7 @@ jobs:
           if: needs.check-changes-and-build.folders != ''
           run: |
                 folders="${{ needs.check-changes-and-build.outputs.folders }}"
+                echo "Folders: $folders"
                 while read -r dir; do
                   old_version=$(cat $dir/version.txt)
                   regex="([0-9]+)\.([0-9]+)\.([0-9]+)"
