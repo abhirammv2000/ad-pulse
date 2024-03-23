@@ -80,7 +80,7 @@ jobs:
       
             - name: Build and push Docker images
               run: |
-                folders="${{ needs.get-list-of-folders.outputs.folders }}"
+                folders="${{ needs.check-changes-and-build.outputs.folders }}"
                 while read -r dir; do
                   docker buildx build \
                     --platform linux/amd64,linux/arm64 \
