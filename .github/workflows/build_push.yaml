@@ -8,6 +8,7 @@ on:
 env:
     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
     check-changes-and-build:
