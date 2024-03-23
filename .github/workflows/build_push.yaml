@@ -23,6 +23,7 @@ jobs:
                 if [[ -n $(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- $dir) ]]; then
                   echo "$dir"
                 fi
+                done
 
         - name: Checkout code
           uses: actions/checkout@v2
