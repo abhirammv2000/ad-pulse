@@ -19,11 +19,11 @@ jobs:
         - name: Get list of folders
           id: list_folders
           run: |
-            find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
+            folders=$(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
               if [[ -n $(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- $dir) ]]; then
                 echo "$dir"
               fi
-            done
+            done)
             echo "::set-output name=folders::$folders"
 
     bump-version:
