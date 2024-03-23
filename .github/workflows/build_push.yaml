@@ -41,7 +41,7 @@ jobs:
 
         - name: Bump version
           run: |
-                if [ "$MY_ENV_VARIABLE" = "some-value" ]; then
+                if [ "$FOLDERS" != "" ]; then
                   folders=$FOLDERS
                   echo "Folders: $folders"
                   while read -r dir; do
