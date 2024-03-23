@@ -66,13 +66,16 @@ jobs:
                 fi
 
         - name: Commit changes
-          if: steps.list_folders.outputs.stdout != ''
           run: |
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add .
-            git commit -m "Bump version to $new_version"
-            git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
+            if [ "$FOLDERS" != "" ]; then
+              git config --global user.name "GitHub Actions"
+              git config --global user.email "actions@github.com"
+              git add .
+              git commit -m "Bump version to $new_version"
+              git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
+            else
+                echo "No changes detected"
+            fi
 
         - name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v1
@@ -81,14 +84,17 @@ jobs:
           run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
   
         - name: Build and push Docker images
-          if: steps.list_folders.outputs.stdout
           run: |
-            folders="${{ steps.list_folders.outputs.stdout }}"
-            while read -r dir; do
-              docker buildx build \
-                --platform linux/amd64,linux/arm64 \
-                --push \
-                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
-                -f $dir/Dockerfile \
-                $dir
-            done <<< "$folders"
+            if [ "$FOLDERS" != "" ]; then
+              folders="${{ steps.list_folders.outputs.stdout }}"
+              while read -r dir; do
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --push \
+                  -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
+                  -f $dir/Dockerfile \
+                  $dir
+              done <<< "$folders"
+            else
+              echo "No changes detected"
+            fi
