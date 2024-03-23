@@ -29,13 +29,13 @@ jobs:
     bump-version:
       needs: check-changes-and-build
       runs-on: ubuntu-latest
+      if: needs.check-changes-and-build.folders != ''
 
       steps:
         - name: Checkout code
           uses: actions/checkout@v2
 
         - name: Bump version
-          if: needs.check-changes-and-build.folders != ''
           run: |
                 folders="${{ needs.check-changes-and-build.outputs.folders }}"
                 echo "Folders: $folders"
