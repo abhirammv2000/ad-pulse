@@ -12,8 +12,6 @@ env:
 jobs:
     check-changes-and-build:
       runs-on: ubuntu-latest
-      outputs:
-        folders: ${{ steps.list_folders.outputs.folders }}
       steps:
         - name: Checkout code
           uses: actions/checkout@v2
@@ -28,18 +26,12 @@ jobs:
             done)
             echo "::set-output name=folders::$folders"
 
-    bump-version:
-      needs: check-changes-and-build
-      runs-on: ubuntu-latest
-      if: needs.check-changes-and-build.outputs.folders != ''
-
-      steps:
         - name: Checkout code
           uses: actions/checkout@v2
 
         - name: Bump version
           run: |
-                folders="${{ needs.check-changes-and-build.outputs.folders }}"
+                folders="${{ steps.list_folders.outputs.stdout }}"
                 echo "Folders: $folders"
                 while read -r dir; do
                   echo "Processing $dir"
@@ -67,29 +59,23 @@ jobs:
             git commit -m "Bump version to $new_version"
             git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
 
-    build:
-        needs: [bump-version, check-changes-and-build]
-        runs-on: ubuntu-latest
-        if: needs.check-changes-and-build.outputs.folders != ''
+        - name: Checkout code
+          uses: actions/checkout@v2
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v1
 
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v1
-
-            - name: Login to Docker Hub
-              run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-      
-            - name: Build and push Docker images
-              run: |
-                folders="${{ needs.check-changes-and-build.outputs.folders }}"
-                while read -r dir; do
-                  docker buildx build \
-                    --platform linux/amd64,linux/arm64 \
-                    --push \
-                    -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
-                    -f $dir/Dockerfile \
-                    $dir
-                done <<< "$folders"
+        - name: Login to Docker Hub
+          run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+  
+        - name: Build and push Docker images
+          run: |
+            folders="${{ steps.list_folders.outputs.stdout }}"
+            while read -r dir; do
+              docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                --push \
+                -t ${{ secrets.DOCKERHUB_USERNAME }}/$dir:$(cat version.txt) \
+                -f $dir/Dockerfile \
+                $dir
+            done <<< "$folders"
