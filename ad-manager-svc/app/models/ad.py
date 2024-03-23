@@ -1,8 +1,6 @@
-from sqlalchemy import Enum
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
-from app.enums.States import States
 
 Base = declarative_base()
 
