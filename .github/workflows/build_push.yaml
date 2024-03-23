@@ -40,27 +40,30 @@ jobs:
             echo "Folders: $FOLDERS"
 
         - name: Bump version
-          if: steps.list_folders.outputs.stdout != ''
           run: |
-                folders="${{ steps.list_folders.outputs.stdout }}"
-                echo "Folders: $folders"
-                while read -r dir; do
-                  echo "Processing $dir"
-                  old_version=$(cat $dir/version.txt)
-                  regex="([0-9]+)\.([0-9]+)\.([0-9]+)"
-                  if [[ $old_version =~ $regex ]]; then
-                      major="${BASH_REMATCH[1]}"
-                      minor="${BASH_REMATCH[2]}"
-                      patch="${BASH_REMATCH[3]}"
-                      new_patch=$((patch + 1))
-                      new_version="${major}.${minor}.${new_patch}"
-                      echo "Old version: $old_version"
-                      echo "New version: $new_version"
-                      echo $new_version > $dir/version.txt
-                  else
-                      echo "Invalid version format: $old_version"
-                  fi
-                done <<< "$folders"
+                if [ "$MY_ENV_VARIABLE" = "some-value" ]; then
+                  folders=$FOLDERS
+                  echo "Folders: $folders"
+                  while read -r dir; do
+                    echo "Processing $dir"
+                    old_version=$(cat $dir/version.txt)
+                    regex="([0-9]+)\.([0-9]+)\.([0-9]+)"
+                    if [[ $old_version =~ $regex ]]; then
+                        major="${BASH_REMATCH[1]}"
+                        minor="${BASH_REMATCH[2]}"
+                        patch="${BASH_REMATCH[3]}"
+                        new_patch=$((patch + 1))
+                        new_version="${major}.${minor}.${new_patch}"
+                        echo "Old version: $old_version"
+                        echo "New version: $new_version"
+                        echo $new_version > $dir/version.txt
+                    else
+                        echo "Invalid version format: $old_version"
+                    fi
+                  done <<< "$folders"
+                else
+                  echo "No changes detected"
+                fi
 
         - name: Commit changes
           if: steps.list_folders.outputs.stdout != ''
