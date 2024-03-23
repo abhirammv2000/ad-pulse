@@ -86,7 +86,7 @@ jobs:
         - name: Build and push Docker images
           run: |
             if [ "$FOLDERS" != "" ]; then
-              folders="${{ steps.list_folders.outputs.stdout }}"
+              folders=$FOLDERS
               while read -r dir; do
                 docker buildx build \
                   --platform linux/amd64,linux/arm64 \
