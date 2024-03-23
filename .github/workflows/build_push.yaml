@@ -23,7 +23,7 @@ jobs:
           id: list_folders
           run: |
                 find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
-                if [[ -n $(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- $dir) ]]; then
+                if [[ -n $(git diff --name-only origin/${{ github.sha }}^ origin/${{ github.sha }}-- $dir) ]]; then
                   echo "::set-env name=FOLDERS::$dir"
                 fi
                 done
