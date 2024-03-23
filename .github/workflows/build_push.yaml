@@ -35,15 +35,9 @@ jobs:
                 fi
                 done
 
-        - name: get folder name
-          run: |
-            echo "${{ steps.list_folders.outputs.stdout }}"
-
         - name: Bump version
           if: ${{ steps.list_folders.outputs.stdout }} != ''
           run: |
-                folders="${{ steps.list_folders.outputs.stdout }}"
-                echo "Folders: $folders"
                 while read -r dir; do
                   echo "Processing $dir"
                   old_version=$(cat $dir/version.txt)
@@ -60,7 +54,7 @@ jobs:
                   else
                       echo "Invalid version format: $old_version"
                   fi
-                done <<< "$folders"
+                done <<< "${{ steps.list_folders.outputs.stdout }}"
 
         - name: Commit changes
           if: steps.list_folders.outputs.stdout != ''
