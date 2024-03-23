@@ -18,6 +18,8 @@ jobs:
           with:
             ref: stage
 
+        - name: print 
+          run: echo .github/workflows/build_push.yaml
         - name: Get list of folders
           id: list_folders
           run: |
