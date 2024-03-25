@@ -17,7 +17,6 @@ def create_publisher(json_data):
 
     new_publisher = Publisher(
         publisherid=generate_publisherid(),
-        externalsystemid=json_data.get('externalsystemid'),
         publishername=json_data.get('publishername'),
         contactinfo=json_data.get('contactinfo'),
         publisherstate= States.CREATED,
@@ -34,7 +33,6 @@ def create_publisher(json_data):
     # Return the created publisher data
     created_publisher = {
         'publisherid': new_publisher.publisherid,
-        'externalsystemid': new_publisher.externalsystemid,
         'publishername': new_publisher.publishername,
         'contactinfo': new_publisher.contactinfo,
         'publisherstate': new_publisher.publisherstate,
@@ -57,7 +55,6 @@ def update_publisher(json_data):
     
     if publisher:
         # Update allowed fields
-        publisher.externalsystemid = json_data.get('externalsystemid', publisher.externalsystemid)
         publisher.publishername = json_data.get('publishername', publisher.publishername)
         publisher.contactinfo = json_data.get('contactinfo', publisher.contactinfo)
         publisher.publisherdomain = json_data.get('publisherdomain', publisher.publisherdomain)
@@ -71,7 +68,6 @@ def update_publisher(json_data):
         # Return updated publisher data
         updated_publisher = {
             'publisherid': publisher.publisherid,
-            'externalsystemid': publisher.externalsystemid,
             'publishername': publisher.publishername,
             'contactinfo': publisher.contactinfo,
             'publisherstate': publisher.publisherstate,
@@ -97,7 +93,6 @@ def get_publisher_by_id(publisher_id):
     if publisher:
         publisher_data = {
             'publisherid': publisher.publisherid,
-            'externalsystemid': publisher.externalsystemid,
             'publishername': publisher.publishername,
             'contactinfo': publisher.contactinfo,
             'publisherstate': publisher.publisherstate,
@@ -124,7 +119,6 @@ def get_all_publishers():
     for publisher in publishers:
         publisher_data = {
             'publisherid': publisher.publisherid,
-            'externalsystemid': publisher.externalsystemid,
             'publishername': publisher.publishername,
             'contactinfo': publisher.contactinfo,
             'publisherstate': publisher.publisherstate,
@@ -162,7 +156,6 @@ def get_publisher_by_state(publisher_state):
     for publisher in publishers:
         publisher_data = {
             'publisherid': publisher.publisherid,
-            'externalsystemid': publisher.externalsystemid,
             'publishername': publisher.publishername,
             'contactinfo': publisher.contactinfo,
             'publisherstate': publisher.publisherstate,
