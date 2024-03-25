@@ -12,7 +12,7 @@ redis_client = get_redis_client()
 def get_cache():
     fetch_and_cache_active_campaigns()
     # sleep(5)
-    all_keys = redis_client.keys('C*')
+    all_keys = redis_client.keys('campaigns')
     cache_data = []
     for key in all_keys:
         value = redis_client.get(key)
@@ -26,8 +26,8 @@ def get_cached_ads():
     ads_by_campaign = {}
 
     # Iterate over each key in the Redis database
-    for key in redis_client.scan_iter("campaign:*"):
-        campaign_id = key.split(':')[1]
+    for key in redis_client.scan_iter("C*"):
+        campaign_id = key
 
         # Get all ad IDs and their corresponding data for the campaign
         ad_data = redis_client.hgetall(key)
