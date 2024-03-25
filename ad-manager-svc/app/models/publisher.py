@@ -7,7 +7,6 @@ class Publisher(Base):
     __tablename__ = 'publisher'
     
     publisherid = Column(String, primary_key=True, nullable=False)
-    externalsystemid = Column(Integer)
     publishername = Column(String)
     contactinfo = Column(JSON)
     publisherstate = Column(String)
