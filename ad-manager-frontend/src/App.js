@@ -1,14 +1,22 @@
 import React from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import NavBar from './components/NavBar';
+import HomePage from './components/pages/HomePage';
+import PublisherPage from './components/pages/PublisherPage'; // Import PublisherPage component
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <p>
-          Hello, World!
-        </p>
-      </header>
-    </div>
+    <Router>
+      <div style={{ display: 'flex' }}>
+        <NavBar />
+        <div style={{ padding: '20px' }}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/inventory/publisher" element={<PublisherPage />} /> {/* Add route for PublisherPage */}
+          </Routes>
+        </div>
+      </div>
+    </Router>
   );
 }
 
