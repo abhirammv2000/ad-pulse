@@ -19,7 +19,7 @@ def create_publisher(json_data):
         publisherid=generate_publisherid(),
         publishername=json_data.get('publishername'),
         contactinfo=json_data.get('contactinfo'),
-        publisherstate= States.CREATED,
+        publisherstate= States.CREATED.value,
         publisherdomain=json_data.get('publisherdomain'),
         createdby=json_data.get('createdby'),
         updatedby=json_data.get('updatedby'),
@@ -52,6 +52,7 @@ def update_publisher(json_data):
     session = create_session()
     publisher_id = json_data.get('publisherid')
     publisher = session.query(Publisher).filter_by(publisherid=publisher_id).first()
+    current_time = datetime.now()
     
     if publisher:
         # Update allowed fields
@@ -59,7 +60,7 @@ def update_publisher(json_data):
         publisher.contactinfo = json_data.get('contactinfo', publisher.contactinfo)
         publisher.publisherdomain = json_data.get('publisherdomain', publisher.publisherdomain)
         publisher.updatedby = json_data.get('updatedby', publisher.updatedby)
-        publisher.updatedat = json_data.get('updatedat', publisher.updatedat)
+        publisher.updatedat = current_time
         publisher.preference = json_data.get('preference', publisher.preference)
         
         # Commit changes
