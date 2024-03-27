@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -7,6 +7,12 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 import axios from 'axios';
+import Table from '@mui/material/Table';
+import TableHead from '@mui/material/TableHead';
+import TableBody from '@mui/material/TableBody';
+import TableRow from '@mui/material/TableRow';
+import TableCell from '@mui/material/TableCell';
+
 
 const PublisherPage = (props) => {
   const [open, setOpen] = useState(false);
@@ -23,12 +29,19 @@ const PublisherPage = (props) => {
   const [updatedBy, setUpdatedBy] = useState('Admin');
   const [updatedAt, setUpdatedAt] = useState('2022-03-18T15:30:00');
 
+  const [publishers, setPublishers] = useState([]);
+  const [selectedPublisher, setSelectedPublisher] = useState({});
+
   const handleClickOpen = () => {
     setOpen(true);
   };
 
   const handleClose = () => {
     setOpen(false);
+  };
+  const handlePublisherClick = (publisher) => {
+    setSelectedPublisher(publisher);
+    setOpen(true);
   };
 
   const handleSave = () => {
@@ -72,6 +85,7 @@ const PublisherPage = (props) => {
   return (
     <div style={{ position: 'absolute', top: '50px', right: '20px' }}>
       <Button variant="contained" onClick={handleClickOpen}>Add new publisher</Button>
+  
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>Add New Publisher</DialogTitle>
         <DialogContent>
@@ -148,6 +162,22 @@ const PublisherPage = (props) => {
           <Button onClick={handleSave} color="primary">Save</Button>
         </DialogActions>
       </Dialog>
+
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Publisher Name</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {publishers.map((publisher) => (
+            <TableRow key={publisher._id} onClick={() => handlePublisherClick(publisher)}>
+              <TableCell>{publisher.publishername}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      
     </div>
   );
 };
