@@ -12,7 +12,7 @@ import (
 func main() {
 	config, err := util.LoadConfig(".")
 	if err != nil {
-		log.Fatal("cannot load configuation: ", err)
+		log.Fatal("cannot load configuration: ", err)
 	}
 
 	server, err := api.NewServer(config)
