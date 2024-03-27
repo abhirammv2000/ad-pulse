@@ -1,0 +1,100 @@
+name: Build and Push to Docker Hub
+
+on:
+    push:
+        branches:
+            - stage
+
+env:
+    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+    DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
+jobs:
+    check-changes-and-build:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+          with:
+            ref: stage
+            fetch-depth: 5
+
+        - name: print
+          run: |
+            echo "Before: ${{ github.event.before }}"
+            echo "After: ${{ github.sha }}"
+            echo "Branch: $(git branch --show-current)"
+
+        - name: Get list of folders
+          id: list_folders
+          run: |
+                find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
+                if [[ -n $(git diff --name-only HEAD^ HEAD  -- $dir) ]]; then
+                  echo "::set-env name=FOLDERS::$dir"
+                fi
+                done
+
+        - name: get folder name
+          run: |
+            echo "Folders: $FOLDERS"
+
+        - name: Bump version
+          run: |
+                if [ "$FOLDERS" != "" ]; then
+                  folders=$FOLDERS
+                  echo "Folders: $folders"
+                  while read -r dir; do
+                    echo "Processing $dir"
+                    old_version=$(cat $dir/version.txt)
+                    regex="([0-9]+)\.([0-9]+)\.([0-9]+)"
+                    if [[ $old_version =~ $regex ]]; then
+                        major="${BASH_REMATCH[1]}"
+                        minor="${BASH_REMATCH[2]}"
+                        patch="${BASH_REMATCH[3]}"
+                        new_patch=$((patch + 1))
+                        new_version="${major}.${minor}.${new_patch}"
+                        echo "Old version: $old_version"
+                        echo "New version: $new_version"
+                        echo $new_version > $dir/version.txt
+                    else
+                        echo "Invalid version format: $old_version"
+                    fi
+                  done <<< "$folders"
+                else
+                  echo "No changes detected"
+                fi
+
+        - name: Commit changes
+          run: |
+            if [ "$FOLDERS" != "" ]; then
+              git config --global user.name "GitHub Actions"
+              git config --global user.email "actions@github.com"
+              git add .
+              git commit -m "Bump version to $new_version"
+              git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
+            else
+                echo "No changes detected"
+            fi
+
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v1
+
+        - name: Login to Docker Hub
+          run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+  
+        - name: Build and push Docker images
+          run: |
+            if [ "$FOLDERS" != "" ]; then
+              folders=$FOLDERS
+              while read -r dir; do
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --push \
+                  -t ${{ secrets.DOCKER_USERNAME }}/$(basename $dir):$(cat $(basename $dir)/version.txt) \
+                  -f $dir/Dockerfile \
+                  $dir
+              done <<< "$folders"
+            else
+              echo "No changes detected"
+            fi
