@@ -20,7 +20,11 @@ const TableContainer = styled.div`
   width: 100%;
 `;
 
+
 const PublisherPage = (props) => {
+
+  const baseUrl = process.env.REACT_APP_API_BASE_URL
+
   const [open, setOpen] = useState(false);
   const [publisherName, setPublisherName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -68,7 +72,7 @@ const PublisherPage = (props) => {
         timezone: preferenceTimezone
       }
     };
-    axios.post('http://localhost:5000/publisher', data)
+    axios.post(`${baseUrl}/publisher`, data)
       .then(response => {
         console.log('Data sent successfully:', response.data);
         // Reset input fields
@@ -88,7 +92,7 @@ const PublisherPage = (props) => {
 
   useEffect(() => {
     // Fetch publishers data from API
-    axios.get('http://localhost:5000/publisher')
+    axios.get(`${baseUrl}/publisher`)
       .then(response => {
         setPublishers(response.data);
       })
