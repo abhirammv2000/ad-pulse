@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend-svc
-          image: adpulse18/ad-manager-svc:1.0.6
+          image: adpulse18/ad-manager-svc:1.0.7
           ports:
             - containerPort: 5000
 ---
