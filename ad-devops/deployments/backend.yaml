@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: backend-svc
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: backend-svc
@@ -23,6 +23,7 @@ kind: Service
 metadata:
   name: backend-svc
 spec:
+  type: LoadBalancer
   selector:
     app: backend-svc
   ports:
