@@ -40,7 +40,10 @@ def fetch_and_cache_active_ads():
 
         session = create_session()
 
-        redis_client.delete('C*')
+        keys_to_delete = redis_client.keys('C*')
+
+        for key in keys_to_delete:
+            redis_client.delete(key)
         
         active_ads = session.query(Ad).filter(Ad.adstate == 'ACTIVE').all()
 
