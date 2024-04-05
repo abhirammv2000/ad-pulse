@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.adpulse.ad_manager_frontend.name  }}
+  labels:
+    {{ .Values.adpulse.ad_manager_frontend.labels | toYaml | nindent 4 }}
+spec:
+  type: {{ .Values.adpulse.ad_manager_frontend.service.type }}
+  ports:
+    - port: {{ .Values.adpulse.ad_manager_frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{ .Values.adpulse.ad_manager_frontend.selectorLabels | toYaml | nindent 8}}
