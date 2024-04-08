@@ -26,6 +26,7 @@ class Ad(Base):
     createdby = Column(String)
     updatedby = Column(String)
     adstate = Column(String)
+    ad_unit_targeted = Column(String)
 
     def __repr__(self):
         return f"<Ad(adid='{self.adid}', adname='{self.adname}', adstate='{self.adstate}')>"
