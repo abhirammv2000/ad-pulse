@@ -4,12 +4,14 @@ from datetime import datetime
 import time
 from app.enums.States import States
 
+
 def generate_adid():
     current_time = time.localtime()
     formatted_time = time.strftime("%Y%m%d%H%M%S", current_time)
     milliseconds = int(time.time() * 1000) % 1000
     formatted_time += '{:03d}'.format(milliseconds)
     return "A" + formatted_time
+
 
 def create_ad(json_data):
     session = create_session()
@@ -18,16 +20,23 @@ def create_ad(json_data):
     new_ad = Ad(
         adid=generate_adid(),
         adname=json_data.get('adname'),
-        adstate=States.CREATED,
+        campaignid=json_data.get('campaignid'),
+        advertiserid=json_data.get('advertiserid'),
+        creativeid=json_data.get('creativeid'),
+        startdate=json_data.get('startdate'),
+        enddate=json_data.get('enddate'),
+        landingurl=json_data.get('landingurl'),
+        budget=json_data.get('budget'),
+        frequencycaps=json_data.get('frequencycaps'),
+        bidinfo=json_data.get('bidinfo'),
         adtype=json_data.get('adtype'),
-        adformat=json_data.get('adformat'),
-        adsize=json_data.get('adsize'),
-        adcontent=json_data.get('adcontent'),
-        createdby=json_data.get('createdby'),
-        updatedby=json_data.get('updatedby'),
+        adpriority=json_data.get('adpriority'),
+        targetinginfo=json_data.get('targetinginfo'),
         createdat=current_time,
         updatedat=current_time,
-        preference=json_data.get('preference')
+        createdby=json_data.get('createdby'),
+        updatedby=json_data.get('updatedby'),
+        adstate=json_data.get('adstate')
     )
     session.add(new_ad)
     session.commit()
@@ -36,66 +45,28 @@ def create_ad(json_data):
     created_ad = {
         'adid': new_ad.adid,
         'adname': new_ad.adname,
-        'adstate': new_ad.adstate,
+        'campaignid': new_ad.campaignid,
+        'advertiserid': new_ad.advertiserid,
+        'creativeid': new_ad.creativeid,
+        'startdate': new_ad.startdate.isoformat(),
+        'enddate': new_ad.enddate.isoformat(),
+        'landingurl': new_ad.landingurl,
+        'budget': new_ad.budget,
+        'frequencycaps': new_ad.frequencycaps,
+        'bidinfo': new_ad.bidinfo,
         'adtype': new_ad.adtype,
-        'adformat': new_ad.adformat,
-        'adsize': new_ad.adsize,
-        'adcontent': new_ad.adcontent,
+        'adpriority': new_ad.adpriority,
+        'targetinginfo': new_ad.targetinginfo,
         'createdby': new_ad.createdby,
         'updatedby': new_ad.updatedby,
         'createdat': new_ad.createdat.isoformat(),
         'updatedat': new_ad.updatedat.isoformat(),
-        'preference': new_ad.preference
+        'adstate': new_ad.adstate
     }
 
     session.close()
     return created_ad
 
-def update_ad(json_data):
-    session = create_session()
-    ad_id = json_data.get('adid')
-    ad = session.query(Ad).filter_by(adid=ad_id).first()
-
-    if ad:
-        # Update allowed fields
-        ad.adname = json_data.get('adname', ad.adname)
-        ad.adtype = json_data.get('adtype', ad.adtype)
-        ad.adformat = json_data.get('adformat', ad.adformat)
-        ad.adsize = json_data.get('adsize', ad.adsize)
-        ad.adcontent = json_data.get('adcontent', ad.adcontent)
-        ad.updatedby = json_data.get('updatedby', ad.updatedby)
-        ad.updatedat = datetime.now()
-        ad.preference = json_data.get('preference', ad.preference)
-        session.commit()
-        session.close()
-        return True
-    else:
-        session.close()
-        return False
-
-def get_ad_by_id(ad_id):
-    session = create_session()
-    ad = session.query(Ad).filter_by(adid=ad_id).first()
-    if ad:
-        ad_data = {
-            'adid': ad.adid,
-            'adname': ad.adname,
-            'adstate': ad.adstate,
-            'adtype': ad.adtype,
-            'adformat': ad.adformat,
-            'adsize': ad.adsize,
-            'adcontent': ad.adcontent,
-            'createdby': ad.createdby,
-            'updatedby': ad.updatedby,
-            'createdat': ad.createdat.isoformat(),
-            'updatedat': ad.updatedat.isoformat(),
-            'preference': ad.preference
-        }
-        session.close()
-        return ad_data
-    else:
-        session.close()
-        return None
 
 def get_all_ads():
     session = create_session()
@@ -105,20 +76,89 @@ def get_all_ads():
         ad_data = {
             'adid': ad.adid,
             'adname': ad.adname,
-            'adstate': ad.adstate,
+            'campaignid': ad.campaignid,
+            'advertiserid': ad.advertiserid,
+            'creativeid': ad.creativeid,
+            'startdate': ad.startdate.isoformat(),
+            'enddate': ad.enddate.isoformat(),
+            'landingurl': ad.landingurl,
+            'budget': ad.budget,
+            'frequencycaps': ad.frequencycaps,
+            'bidinfo': ad.bidinfo,
             'adtype': ad.adtype,
-            'adformat': ad.adformat,
-            'adsize': ad.adsize,
-            'adcontent': ad.adcontent,
+            'adpriority': ad.adpriority,
+            'targetinginfo': ad.targetinginfo,
             'createdby': ad.createdby,
             'updatedby': ad.updatedby,
-            'createdat': ad.createdat.isoformat(),
-            'updatedat': ad.updatedat.isoformat(),
-            'preference': ad.preference
+            'createdat': ad.createdat,
+            'updatedat': ad.updatedat,
+            'adstate': ad.adstate
         }
         ads_data.append(ad_data)
     session.close()
     return ads_data
+
+def get_ad_by_id(ad_id):
+    session = create_session()
+    ad = session.query(Ad).filter_by(adid=ad_id).first()
+    if ad:
+        ad_data = {
+            'adid': ad.adid,
+            'adname': ad.adname,
+            'campaignid': ad.campaignid,
+            'advertiserid': ad.advertiserid,
+            'creativeid': ad.creativeid,
+            'startdate': ad.startdate.isoformat(),
+            'enddate': ad.enddate.isoformat(),
+            'landingurl': ad.landingurl,
+            'budget': ad.budget,
+            'frequencycaps': ad.frequencycaps,
+            'bidinfo': ad.bidinfo,
+            'adtype': ad.adtype,
+            'adpriority': ad.adpriority,
+            'targetinginfo': ad.targetinginfo,
+            'createdby': ad.createdby,
+            'updatedby': ad.updatedby,
+            'createdat': ad.createdat,
+            'updatedat': ad.updatedat,
+            'adstate': ad.adstate
+        }
+        session.close()
+        return ad_data
+    else:
+        session.close()
+        return None
+
+def get_ad_by_state(state):
+    session = create_session()
+    ads = session.query(Ad).filter_by(adstate=state).all()
+    ads_data = []
+    for ad in ads:
+        ad_data = {
+            'adid': ad.adid,
+            'adname': ad.adname,
+            'campaignid': ad.campaignid,
+            'advertiserid': ad.advertiserid,
+            'creativeid': ad.creativeid,
+            'startdate': ad.startdate.isoformat(),
+            'enddate': ad.enddate.isoformat(),
+            'landingurl': ad.landingurl,
+            'budget': ad.budget,
+            'frequencycaps': ad.frequencycaps,
+            'bidinfo': ad.bidinfo,
+            'adtype': ad.adtype,
+            'adpriority': ad.adpriority,
+            'targetinginfo': ad.targetinginfo,
+            'createdby': ad.createdby,
+            'updatedby': ad.updatedby,
+            'createdat': ad.createdat,
+            'updatedat': ad.updatedat,
+            'adstate': ad.adstate
+        }
+        ads_data.append(ad_data)
+    session.close()
+    return ads_data
+
 def update_ad_state(ad_id, new_state):
     session = create_session()
     ad = session.query(Ad).filter_by(adid=ad_id).first()
@@ -131,38 +171,28 @@ def update_ad_state(ad_id, new_state):
         session.close()
         return False
 
-# def get_ad_state(ad_id):
-#     session = create_session()
-#     ad = session.query(Ad).filter_by(adid=ad_id).first()
-#     if ad:
-#         ad_state = ad.adstate
-#         session.close()
-#         return ad_state
-#     else:
-#         session.close()
-#         return None
-
-def get_ad_by_state(ad_state):
+def update_ad(json_data):
     session = create_session()
-    ads = session.query(Ad).filter_by(adstate=ad_state).all()
-    ads_data = []
-    for ad in ads:
-        ad_data = {
-            'adid': ad.adid,
-            'adname': ad.adname,
-            'adstate': ad.adstate,
-            'adtype': ad.adtype,
-            'adformat': ad.adformat,
-            'adsize': ad.adsize,
-            'adcontent': ad.adcontent,
-            'createdby': ad.createdby,
-            'updatedby': ad.updatedby,
-            'createdat': ad.createdat.isoformat(),
-            'updatedat': ad.updatedat.isoformat(),
-            'preference': ad.preference
-        }
-        ads_data.append(ad_data)
-    session.close()
-    return ads_data
-
-
+    ad = session.query(Ad).filter_by(adid=json_data.get('adid')).first()
+    if ad:
+        ad.adname = json_data.get('adname')
+        ad.campaignid = json_data.get('campaignid')
+        ad.advertiserid = json_data.get('advertiserid')
+        ad.creativeid = json_data.get('creativeid')
+        ad.startdate = json_data.get('startdate')
+        ad.enddate = json_data.get('enddate')
+        ad.landingurl = json_data.get('landingurl')
+        ad.budget = json_data.get('budget')
+        ad.frequencycaps = json_data.get('frequencycaps')
+        ad.bidinfo = json_data.get('bidinfo')
+        ad.adtype = json_data.get('adtype')
+        ad.adpriority = json_data.get('adpriority')
+        ad.targetinginfo = json_data.get('targetinginfo')
+        ad.updatedat = datetime.now()
+        ad.updatedby = json_data.get('updatedby')
+        session.commit()
+        session.close()
+        return True
+    else:
+        session.close()
+        return False
