@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.models.campaign import Campaign
+
 Base = declarative_base()
 
 class Ad(Base):
@@ -9,8 +11,8 @@ class Ad(Base):
 
     adid = Column(String, primary_key=True)
     adname = Column(String)
-    campaignid = Column(String, ForeignKey('campaign.campaignid'))
-    advertiserid = Column(String, ForeignKey('advertiser.advertiserid'))
+    campaignid = Column(String, ForeignKey(Campaign.campaignid))
+    advertiserid = Column(String)
     creativeid = Column(String)
     startdate = Column(DateTime)
     enddate = Column(DateTime)

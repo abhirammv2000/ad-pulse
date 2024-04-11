@@ -10,7 +10,7 @@ def generate_adid():
     formatted_time = time.strftime("%Y%m%d%H%M%S", current_time)
     milliseconds = int(time.time() * 1000) % 1000
     formatted_time += '{:03d}'.format(milliseconds)
-    return "A" + formatted_time
+    return "AD" + formatted_time
 
 
 def create_ad(json_data):
@@ -36,7 +36,8 @@ def create_ad(json_data):
         updatedat=current_time,
         createdby=json_data.get('createdby'),
         updatedby=json_data.get('updatedby'),
-        adstate=json_data.get('adstate')
+        adstate=States.CREATED.value,
+        ad_unit_targeted=json_data.get('ad_unit_targeted')
     )
     session.add(new_ad)
     session.commit()
@@ -61,7 +62,8 @@ def create_ad(json_data):
         'updatedby': new_ad.updatedby,
         'createdat': new_ad.createdat.isoformat(),
         'updatedat': new_ad.updatedat.isoformat(),
-        'adstate': new_ad.adstate
+        'adstate': new_ad.adstate,
+        'ad_unit_targeted': new_ad.ad_unit_targeted
     }
 
     session.close()
@@ -92,7 +94,8 @@ def get_all_ads():
             'updatedby': ad.updatedby,
             'createdat': ad.createdat,
             'updatedat': ad.updatedat,
-            'adstate': ad.adstate
+            'adstate': ad.adstate,
+            'ad_unit_targeted': ad.ad_unit_targeted
         }
         ads_data.append(ad_data)
     session.close()
@@ -121,7 +124,8 @@ def get_ad_by_id(ad_id):
             'updatedby': ad.updatedby,
             'createdat': ad.createdat,
             'updatedat': ad.updatedat,
-            'adstate': ad.adstate
+            'adstate': ad.adstate,
+            'ad_unit_targeted': ad.ad_unit_targeted
         }
         session.close()
         return ad_data
@@ -153,7 +157,8 @@ def get_ad_by_state(state):
             'updatedby': ad.updatedby,
             'createdat': ad.createdat,
             'updatedat': ad.updatedat,
-            'adstate': ad.adstate
+            'adstate': ad.adstate,
+            'ad_unit_targeted': ad.ad_unit_targeted
         }
         ads_data.append(ad_data)
     session.close()
@@ -190,6 +195,7 @@ def update_ad(json_data):
         ad.targetinginfo = json_data.get('targetinginfo')
         ad.updatedat = datetime.now()
         ad.updatedby = json_data.get('updatedby')
+        ad.ad_unit_targeted = json_data.get('ad_unit_targeted')
         session.commit()
         session.close()
         return True
