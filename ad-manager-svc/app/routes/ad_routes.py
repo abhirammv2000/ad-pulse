@@ -36,18 +36,18 @@ def get_ad_by_id_api(ad_id):
 @ad_blueprint.route('/ad/state/<state>', methods=['GET'])
 def get_ad_by_state_api(state):
     # Get the ad
+    if state not in States.__members__:
+        return jsonify({'error': 'Invalid state'}), 400
     ads = get_ad_by_state(state)
-
-    if ads:
-        return ads, 200
-    else:
-        return jsonify({'error': 'Ad not found'}), 404
+    return ads, 200
 
 @ad_blueprint.route('/ad', methods=['PATCH'])
 def update_ad_state_api():
     ad_id = request.args.get('ad_id')
-    new_state = request.args.get('new_state')
+    new_state = request.args.get('state')
+    print(new_state)
     if new_state not in States.__members__:
+        print(States.__members__)
         return jsonify({'error': 'Invalid state'}), 400
     if new_state == States.CREATED.value:
         return jsonify({'error': 'Invalid State Transition'}), 400
