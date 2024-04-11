@@ -1,6 +1,7 @@
 from flask import Flask
 from config import Config
 
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -10,5 +11,8 @@ def create_app():
 
     from app.routes.publisher_routes import publisher_blueprint
     app.register_blueprint(publisher_blueprint)
+
+    from app.routes.ad_routes import ad_blueprint
+    app.register_blueprint(ad_blueprint)
 
     return app
