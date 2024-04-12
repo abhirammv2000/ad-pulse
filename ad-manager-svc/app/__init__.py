@@ -15,4 +15,13 @@ def create_app():
     from app.routes.ad_routes import ad_blueprint
     app.register_blueprint(ad_blueprint)
 
+    from app.routes.advertiser_routes import advertiser_blueprint
+    app.register_blueprint(advertiser_blueprint)
+
+    from app.routes.ad_unit_routes import ad_unit_blueprint 
+    app.register_blueprint(ad_unit_blueprint)
+
+    from app.routes.creative_routes import creative_blueprint
+    app.register_blueprint(creative_blueprint)
+
     return app
