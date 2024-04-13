@@ -20,7 +20,7 @@ func main() {
 	supabaseKey := getEnv("SUPABASE_KEY", "")
 	supaClient := supabase.CreateClient(supabaseUrl, supabaseKey)
 
-	// define router group 
+	// define router group
 	engagementGroup := router.Group("/engagement")
 	{
 		engagementGroup.GET("/clk", services.ClickServiceHandler(supaClient))
@@ -33,14 +33,14 @@ func main() {
 		})
 	})
 
-	err := router.Run(":8080")
+	err := router.Run(":8081")
 	defer panic(err)
 
 }
 
 func getEnv(key, fallback string) string {
-    if value, ok := os.LookupEnv(key); ok {
-        return value
-    }
-    return fallback
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }
