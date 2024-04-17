@@ -13,7 +13,7 @@ def fetch_and_cache_active_campaigns():
 
         session = create_session()
 
-        redis_client.delete('C*')
+        redis_client.delete('campaigns')
         
         active_campaigns = session.query(Campaign).filter(Campaign.campaignstate == 'ACTIVE').all()
 
@@ -22,15 +22,17 @@ def fetch_and_cache_active_campaigns():
         cache_active_campaigns(active_campaigns)
 
 def cache_active_campaigns(active_campaigns):
+    key = "campaigns"
+    campaigns_list = []
     for campaign in active_campaigns:
-        key = campaign.campaignid
         campaign_json = {key: getattr(campaign, key) for key in campaign.__dict__.keys() if key != '_sa_instance_state'}        
         campaign_json['startdate'] = campaign_json['startdate'].isoformat() if campaign_json['startdate'] else None
         campaign_json['enddate'] = campaign_json['enddate'].isoformat() if campaign_json['enddate'] else None
         campaign_json['createdat'] = campaign_json['createdat'].isoformat() if campaign_json['createdat'] else None
         campaign_json['updatedat'] = campaign_json['updatedat'].isoformat() if campaign_json['updatedat'] else None
-        value = json.dumps(campaign_json)
-        redis_client.set(key, value)
+        campaigns_list.append(campaign_json)
+    value = json.dumps(campaigns_list)
+    redis_client.set(key, value)
 
 def fetch_and_cache_active_ads():
 
@@ -38,7 +40,10 @@ def fetch_and_cache_active_ads():
 
         session = create_session()
 
-        redis_client.delete('campaigns:*')
+        keys_to_delete = redis_client.keys('C*')
+
+        for key in keys_to_delete:
+            redis_client.delete(key)
         
         active_ads = session.query(Ad).filter(Ad.adstate == 'ACTIVE').all()
 
@@ -48,7 +53,7 @@ def fetch_and_cache_active_ads():
 
 def cache_active_ads(active_ads):
     for ad in active_ads:
-        key = f'campaign:{ad.campaignid}'
+        key = ad.campaignid
         ad_json = {key: getattr(ad, key) for key in ad.__dict__.keys() if key != '_sa_instance_state'}
         ad_json['startdate'] = ad_json['startdate'].isoformat() if ad_json['startdate'] else None
         ad_json['enddate'] = ad_json['enddate'].isoformat() if ad_json['enddate'] else None

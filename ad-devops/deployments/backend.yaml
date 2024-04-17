@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-svc
+  template:
+    metadata:
+      labels:
+        app: backend-svc
+    spec:
+      containers:
+        - name: backend-svc
+          image: adpulse18/ad-manager-svc:1.0.7
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+spec:
+  type: LoadBalancer
+  selector:
+    app: backend-svc
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
