@@ -116,9 +116,9 @@ jobs:
       
       - name: Authenticate with Google Cloud
         run: |
-          # echo "${{ secrets.GCP_SA_KEY_STAGE }}" > key.json
+          printf "%s" '${{ secrets.GCP_SA_KEY_STAGE }}' > key.json
           # gcloud auth activate-service-account --key-file=${{ secrets.GCP_SA_KEY_STAGE }}
-          printf "%s" '${{ secrets.GCP_SA_KEY_STAGE }}' | gcloud auth activate-service-account --key-file=-
+          gcloud auth activate-service-account --key-file=key.json
 
   
       - name: Set up Kubernetes cluster context
