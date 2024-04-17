@@ -66,7 +66,7 @@ adpulse:
     image:
       repository: adpulse18/ad-server-svc
       pullPolicy: Always
-      tag: 1.0.2
+      tag: 1.0.3
     service:
       type: LoadBalancer
       port: 8080
