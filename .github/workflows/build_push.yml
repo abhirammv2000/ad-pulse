@@ -143,9 +143,9 @@ jobs:
       - name: Install or upgrade Helm chart
         if: steps.helm-check.outputs.exists == 'false'
         run: |
-          helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse --namespace=adpulse --create-namespace
+          helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
   
       - name: Upgrade Helm chart
         if: steps.helm-check.outputs.exists == 'true'
         run: |
-          helm upgrade stage ./ad-devops/helm/ad-pulse  --values ./ad-devops/helm/ad-pulse --namespace=adpulse
+          helm upgrade stage ./ad-devops/helm/ad-pulse  --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse
