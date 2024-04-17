@@ -117,7 +117,7 @@ jobs:
       - name: Authenticate with Google Cloud
         run: |
           echo "${{ secrets.GCP_SA_KEY_STAGE }}" > /tmp/key.json
-          gcloud auth activate-service-account --key-file=/tmp/key.json
+          gcloud auth activate-service-account --key-file="/tmp/key.json"
   
       - name: Set up Kubernetes cluster context
         run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_STAGE}} --project ${{ vars.GCP_PROJECT_ID_STAGE }}
