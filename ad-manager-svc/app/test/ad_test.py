@@ -195,36 +195,6 @@ class TestAdService(unittest.TestCase):
 
         self.assertFalse(updated)
 
-    # def test_create_ad_api(self):
-    #     # Test case for create_ad_api function
-    #     json_data = {
-    #         "adid": "A202404101",
-    #         "adname": "test1Aditi",
-    #         "adpriority": 4,
-    #         "adstate": "INACTIVE",
-    #         "adtype": "GUARANTEED",
-    #         "advertiserid": "A12345",
-    #         "bidinfo": None,
-    #         "budget": None,
-    #         "campaignid": "C54321",
-    #         "createdat": "Wed, 10 Apr 2024 16:22:38 GMT",
-    #         "createdby": "kushal.1nagaraj.1@gmail.com",
-    #         "creativeid": "CR12345",
-    #         "enddate": "2024-03-17T21:05:56",
-    #         "frequencycaps": None,
-    #         "landingurl": "https://www.hotstar.com",
-    #         "startdate": "2024-03-17T21:05:56",
-    #         "targetinginfo": None,
-    #         "updatedat": "",
-    #         "updatedby": "aditihk@gmail.com"}
-    #     # Mocking the request.json
-    #     request = MagicMock()
-    #     request.json = json_data
-    #     # Call the function
-    #     created_ad = create_ad(json_data)
-    #     # Assertions
-    #     self.assertIsNotNone(created_ad)
-
     def test_update_ad_api(self):
         # Test case for update_ad_api function
         json_data = {
