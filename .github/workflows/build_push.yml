@@ -117,7 +117,7 @@ jobs:
       - name: Install kubectl
         run: |
           gcloud components install kubectl
-          gcloud components install kubernetes-credential-gke
+          gcloud components install gke-gcloud-auth-plugin
       
       - name: Authenticate with Google Cloud
         run: |
