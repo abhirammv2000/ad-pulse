@@ -1,0 +1,42 @@
+name: Deploy Helm Chart to GKE
+
+on:
+  push:
+    branches:
+      - stage
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0.2.0
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY_STAGE }}
+        project_id: ${{ vars.GCP_PROJECT_ID_STAGE }}
+        export_default_credentials: true
+    
+    - name: Authenticate with Google Cloud
+      run: gcloud auth activate-service-account --key-file=${{ secrets.GCP_SA_KEY_STAGE }}
+
+    - name: Set up Kubernetes cluster context
+      run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_STAGE}} --project ${{ vars.GCP_PROJECT_ID_STAGE }}
+
+    - name: Configure Helm
+      run: |
+        helm repo add stable https://charts.helm.sh/stable
+        helm repo update
+
+    - name: Deploy Helm chart
+      uses: azure/helm-install@v1
+      with:
+        chart-ref: ./ad-devops/helm/ad-pulse
+        chart-version: 0.1.0
+        namespace: adpulse
+        release-name: adpulse
+        values: ./ad-devops/helm/ad-pulse/values.yaml  
+        kubeconfig: ${{ secrets.KUBE_CONFIG }}
