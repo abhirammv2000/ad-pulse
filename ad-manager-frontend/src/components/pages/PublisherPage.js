@@ -120,7 +120,7 @@ const PublisherPage = (props) => {
           </TableHead>
           <TableBody>
             {publishers.map((publisher) => (
-              <TableRow key={publisher._id} onClick={() => handlePublisherClick(publisher)}>
+              <TableRow key={publisher._id} >
                 <TableCell>{publisher.publisherid}</TableCell>
                 <TableCell>{publisher.publishername}</TableCell>
                 <TableCell>{publisher.publisherstate}</TableCell>
