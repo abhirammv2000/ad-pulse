@@ -133,24 +133,23 @@ jobs:
           helm repo add stable https://charts.helm.sh/stable
           helm repo update
   
-      - name: Check if Helm release exists
-        id: helm-check
-        run: |
-          set -e
-          if helm status stage >/dev/null 2>&1; then
-            echo "Release exists, using helm upgrade"
-            echo "::set-output name=exists::true"
-          else
-            echo "Release does not exist, using helm install"
-            echo "::set-output name=exists::false"
-          fi
+      # - name: Check if Helm release exists
+      #   id: helm-check
+      #   run: |
+      #     set -e
+      #     if helm status stage >/dev/null 2>&1; then
+      #       echo "Release exists, using helm upgrade"
+      #       echo "::set-output name=exists::true"
+      #     else
+      #       echo "Release does not exist, using helm install"
+      #       echo "::set-output name=exists::false"
+      #     fi
   
-      - name: Install or upgrade Helm chart
-        if: steps.helm-check.outputs.exists == 'false'
-        run: |
-          helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
+      # - name: Install or upgrade Helm chart
+      #   if: steps.helm-check.outputs.exists == 'false'
+      #   run: |
+      #     helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
   
       - name: Upgrade Helm chart
-        if: steps.helm-check.outputs.exists == 'true'
         run: |
           helm upgrade stage ./ad-devops/helm/ad-pulse  --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse 

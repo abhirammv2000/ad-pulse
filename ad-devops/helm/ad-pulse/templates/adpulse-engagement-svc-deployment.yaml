@@ -22,7 +22,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.adpulse.adpulse_engagement_svc.service.port }}
               protocol: TCP
           # livenessProbe:
           #   httpGet:
