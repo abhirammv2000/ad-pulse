@@ -1,0 +1,4 @@
+kafka:
+  configOverrides:
+    listeners: PLAINTEXT://:9092
+    advertised.listeners: PLAINTEXT://kafka-broker:9092
