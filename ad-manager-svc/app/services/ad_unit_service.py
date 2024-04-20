@@ -3,6 +3,7 @@ from app.models.ad_unit import AdUnit
 import time
 from datetime import datetime
 from app.enums.States import States
+from app.models.publisher import Publisher
 
 def generate_adunitid():
     current_time = time.localtime()
@@ -147,6 +148,30 @@ def update_ad_unit_state(ad_unit_id, new_state):
 def get_ad_unit_by_state(ad_unit_state):
     session = create_session()
     ad_units = session.query(AdUnit).filter_by(adunitstate=ad_unit_state).all()
+    
+    ad_units_data = []
+    for ad_unit in ad_units:
+        ad_unit_data = {
+            'adunitid': ad_unit.adunitid,
+            'adunittype': ad_unit.adunittype,
+            'adunitname': ad_unit.adunitname,
+            'publisherid': ad_unit.publisherid,
+            'adunitstate': ad_unit.adunitstate,
+            'createdby': ad_unit.createdby,
+            'updatedby': ad_unit.updatedby,
+            'createdat': ad_unit.createdat.isoformat(),
+            'updatedat': ad_unit.updatedat.isoformat(),
+            'preference': ad_unit.preference
+        }
+        ad_units_data.append(ad_unit_data)
+    
+    session.close()
+    
+    return ad_units_data
+
+def get_ad_unit_by_publisher(publisher_id):
+    session = create_session()
+    ad_units = session.query(AdUnit).filter_by(publisherid=publisher_id).all()
     
     ad_units_data = []
     for ad_unit in ad_units:

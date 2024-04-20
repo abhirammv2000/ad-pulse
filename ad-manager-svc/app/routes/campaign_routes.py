@@ -1,6 +1,6 @@
 from flask import request, jsonify, Blueprint
 from app.enums.States import States
-from app.services.campaign_service import get_all_campaigns, get_campaign_by_id, get_campaign_by_state, create_campaign, update_campaign, update_campaign_state
+from app.services.campaign_service import get_all_campaigns, get_campaign_by_id, get_campaign_by_state, create_campaign, update_campaign, update_campaign_state, get_campaign_by_advertiser_id
 
 campaign_blueprint = Blueprint('campaign', __name__)
 
@@ -59,9 +59,19 @@ def update_campaign_api():
 @campaign_blueprint.route('/campaign', methods=['PATCH'])
 def update_campaign_state_api():
     campaign_id = request.args.get('campaign_id')
-    new_state = request.args.get('new_state')
+    new_state = request.args.get('state')
     if new_state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     if new_state == States.CREATED.value:
         return jsonify({'error': 'Invalid State Transition'}), 400
-    return update_campaign_state(campaign_id, new_state)
+    if update_campaign_state(campaign_id, new_state):
+        return jsonify({'message': f'Campaign state updated successfully to {new_state}'}), 200
+    else:
+        return jsonify({'error': 'Campaign not found'}), 404
+    
+@campaign_blueprint.route('/campaign/advertiser/<advertiser_id>', methods=['GET'])
+def get_campaign_by_advertiser_api(advertiser_id):
+    # Get campaign by advertiser ID
+    campaigns = get_campaign_by_advertiser_id(advertiser_id)
+
+    return campaigns, 200
