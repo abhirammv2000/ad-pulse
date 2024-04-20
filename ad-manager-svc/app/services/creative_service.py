@@ -167,3 +167,26 @@ def get_creative_by_state(creative_state):
     session.close()
     
     return creatives_data
+
+def get_creative_by_advertiser_id(advertiser_id):
+    session = create_session()
+    creatives = session.query(Creative).filter(Creative.advertiserid == advertiser_id).all()
+    creative_list = []
+    for creative in creatives:
+        creative_data = {
+            'creativeid': creative.creativeid,
+            'creativetype': creative.creativetype,
+            'creativename': creative.creativename,
+            'creativestate': creative.creativestate,
+            'advertiserid': creative.advertiserid,
+            'createdby': creative.createdby,
+            'updatedby': creative.updatedby,
+            'createdat': creative.createdat.isoformat(),
+            'updatedat': creative.updatedat.isoformat(),
+            'assets': creative.assets
+        }
+        creative_list.append(creative_data)
+    
+    session.close()
+    
+    return creative_list

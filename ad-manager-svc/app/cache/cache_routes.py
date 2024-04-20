@@ -2,7 +2,7 @@ from time import sleep
 from flask import jsonify, Blueprint
 from config.redis import get_redis_client
 import json
-from app.cache.cache_job import fetch_and_cache_active_campaigns, fetch_and_cache_active_ads
+from app.cache.cache_job import fetch_and_cache_active_campaigns, fetch_and_cache_active_ads, fetch_and_cache_active_creatives
 
 cache_blueprint = Blueprint('cache', __name__)
 
@@ -39,3 +39,17 @@ def get_cached_ads():
         ads_by_campaign[campaign_id] = ad_data_dict
 
     return jsonify(ads_by_campaign)
+
+@cache_blueprint.route('/cache/creatives', methods=['GET'])
+def get_cached_creatives():
+    fetch_and_cache_active_creatives()
+
+    creative_keys = redis_client.keys('CR*')
+    creatives = {}
+    for key in creative_keys:
+        creative_json = redis_client.get(key)
+        creatives[key] = json.loads(creative_json)
+    return jsonify(creatives)
+
+
+    

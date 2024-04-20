@@ -164,7 +164,18 @@ def update_campaign_state(campaign_id, state):
     if campaign:
         campaign.campaignstate = state
         session.commit()
-        updated_campaign = {
+        session.close()
+        return True
+    else:
+        session.close()
+        return False
+    
+def get_campaign_by_advertiser_id(advertiser_id):
+    session = create_session()
+    campaigns = session.query(Campaign).filter(Campaign.advertiserid == advertiser_id).all()
+    campaign_list = []
+    for campaign in campaigns:
+        campaign_data = {
             'campaignid': campaign.campaignid,
             'campaignname': campaign.campaignname,
             'advertiserid': campaign.advertiserid,
@@ -178,8 +189,6 @@ def update_campaign_state(campaign_id, state):
             'updatedat': campaign.updatedat.isoformat(),
             'campaignstate': campaign.campaignstate
         }
-        session.close()
-        return updated_campaign
-    else:
-        session.close()
-        return None
+        campaign_list.append(campaign_data)
+    session.close()
+    return campaign_list
