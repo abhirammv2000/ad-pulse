@@ -46,7 +46,7 @@ func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
 								fmt.Println("Error marshalling JSON:", err)
 								return nil, err
 							}
-							admJSON, err := json.Marshal(imp)
+							admJSON, err := json.Marshal(asset)
 							if err != nil {
 								fmt.Println("Error marshalling to JSON:", err)
 								return nil, err
