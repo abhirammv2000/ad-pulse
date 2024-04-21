@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-svc
+  template:
+    metadata:
+      labels:
+        app: frontend-svc
+    spec:
+      containers:
+        - name: frontend-svc
+          image: adpulse18/ad-manager-frontend:1.0.2
+          ports:
+            - containerPort: 3000
+          env:
+            - name: REACT_APP_API_BASE_URL
+              value: http://backend-svc:5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend-svc
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
