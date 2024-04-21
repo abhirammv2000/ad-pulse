@@ -1,6 +1,7 @@
 package api
 
 import (
+	"adserver/cache"
 	"adserver/util"
 
 	"github.com/gin-contrib/cors"
@@ -11,11 +12,13 @@ import (
 type Server struct {
 	config util.Config
 	router *gin.Engine
+	store  cache.Store
 }
 
-func NewServer(config util.Config) (*Server, error) {
+func NewServer(config util.Config, store cache.Store) (*Server, error) {
 	server := &Server{
 		config: config,
+		store:  store,
 	}
 
 	server.setupRouter()
