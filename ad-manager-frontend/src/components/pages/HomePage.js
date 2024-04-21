@@ -1,6 +1,7 @@
 // HomePage.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import adServeRequestBody from '../../requests/adServeRequest'; 
 
 const HomePage = () => {
   return (
@@ -13,40 +14,57 @@ const HomePage = () => {
 };
 
 function ImageContainer() {
+  const [imageUrl, setImageUrl] = useState('');
+  const [clickUrl, setClickUrl] = useState('');
+  const [landingUrl, setLandingUrl] = useState('');
+  const adServeUrl = process.env.REACT_APP_API_AD_SERVER_URL;
 
-  const handleClick = () => {
-      // Send POST request using Axios
-      axios.post('http://0.0.0.0:8080/adserve?adunit_id=ADU20240417203820766&publisher_id=P20240417203653208' , {
-          // Add any data you want to send in the request body
-      })
-      .then(response => {
-          // Handle successful response
-          console.log(response.data);
-      })
-      .catch(error => {
-          // Handle error
-          console.error('Error:', error);
-      });
+  useEffect(() => {
+    const fetchAdImage = async () => {
+      try {
+        adServeRequestBody.imp[0].native.request.assets[0].img.w = 1280; // Update the image width
+        adServeRequestBody.imp[0].native.request.assets[0].img.h = 720; // Update the image height
+        const response = await axios.post(`${adServeUrl}/adserve?adunit_id=ADU20240417203820766&publisher_id=P20240417203653208`, adServeRequestBody);
+        const adm = JSON.parse(response.data.bid[0].adm);
+        console.log('Ad image URL:', adm.imageURL);
+        setImageUrl(adm.imageURL);
+        setClickUrl(response.data.bid[0].ext.clickUrl);
+        setLandingUrl(response.data.bid[0].ext.landingUrl);
+        await axios.get(response.data.bid[0].ext.renderUrl);
+      } catch (error) {
+        console.error('Error fetching ad image:', error);
+      }
+    };
+
+    fetchAdImage();
+  }, [adServeUrl]); // Trigger the effect when adServeUrl changes
+
+  const handleClick = async () => {
+    window.open(landingUrl.includes('http') ? landingUrl : `https://${landingUrl}`, '_blank');
+    try {
+      const response = await axios.get(clickUrl);
+      console.log('Click URL:', response.data);
+    } catch (error) {
+      console.error('Error fetching click URL:', error);
+    }
   };
 
   return (
-      <div className="image-container">
-          <img 
-              src="https://ads-static-testing.phonepe.com/cdn-cgi/image/width=1080,height=608/creatives/static/img/BA2402151719543396046214/2:15:18:47:36/__1440x810/en.png" 
-              alt="Description of the image" 
-              style={{ 
-                  maxWidth: '1000px', 
-                  maxHeight: '300px', 
-                  width: 'auto', 
-                  height: 'auto', 
-                  position: 'absolute', 
-                  bottom: '0', 
-                  left: '50%', 
-                  transform: 'translateX(-50%)' 
-              }}
-              onClick={handleClick} // Attach onClick event handler
-          />
-      </div>
+    <div className="image-container" style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', maxWidth: '320px', maxHeight: '180px', marginBottom: '20px' }}>
+      {imageUrl && (
+        <img 
+          src={imageUrl} 
+          alt="Advertisement" 
+          style={{ 
+            maxWidth: '100%', 
+            maxHeight: '100%', 
+            width: 'auto', 
+            height: 'auto' 
+          }}
+          onClick={handleClick}
+        />
+      )}
+    </div>
   );
 }
 
