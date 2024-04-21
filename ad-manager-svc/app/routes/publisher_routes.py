@@ -53,7 +53,7 @@ def get_all_publishers_api():
 @publisher_blueprint.route('/publisher', methods=['PATCH'])
 def update_publisher_state_api():
     publisher_id = request.args.get('publisher_id')
-    new_state = request.args.get('new_state')
+    new_state = request.args.get('state')
     if new_state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     if new_state == States.CREATED.value:

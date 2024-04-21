@@ -11,7 +11,7 @@ class Advertiser(Base):
     advertiserid = Column(String, primary_key=True, nullable=False)
     advertisername = Column(String)
     industry = Column(String)
-    brands = Column(JSONB)
+    brands = Column(String)
     contactinfo = Column(JSONB)
     advertisertype = Column(String)
     createdby = Column(String)
@@ -22,21 +22,5 @@ class Advertiser(Base):
 
     def __repr__(self):
         return f"<Advertiser(id={self.advertiserid}, name='{self.advertisername}', state='{self.advertiserstate}')>"
-
-
-
-    """
-    advertiserId varchar PRIMARY KEY,
-  advetiserName varchar,
-  industry varchar,
-  brands varchar[],
-  contactInfo jsonb,
-  advertiserType varchar,
-  createdAt timestamp,
-  updatedAt timestamp,
-  createdBy varchar,
-  updatedBy varchar,
-  advertiser_state varchar
-    """
 
   

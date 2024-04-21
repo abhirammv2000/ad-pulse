@@ -98,3 +98,58 @@ jobs:
             else
               echo "No changes detected"
             fi
+
+    deploy:
+      needs: check-changes-and-build
+      runs-on: ubuntu-latest
+      
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+  
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0.2.0
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY_STAGE }}
+          project_id: ${{ vars.GCP_PROJECT_ID_STAGE }}
+          export_default_credentials: true
+        
+      - name: Install kubectl
+        run: |
+          gcloud components install kubectl
+          gcloud components install gke-gcloud-auth-plugin
+      
+      - name: Authenticate with Google Cloud
+        run: |
+          printf "%s" '${{ secrets.GCP_SA_KEY_STAGE }}' > key.json
+          gcloud auth activate-service-account --key-file=key.json
+
+  
+      - name: Set up Kubernetes cluster context
+        run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_STAGE}} --project ${{ vars.GCP_PROJECT_ID_STAGE }}
+  
+      - name: Configure Helm
+        run: |
+          helm repo add stable https://charts.helm.sh/stable
+          helm repo update
+  
+      # - name: Check if Helm release exists
+      #   id: helm-check
+      #   run: |
+      #     set -e
+      #     if helm status stage >/dev/null 2>&1; then
+      #       echo "Release exists, using helm upgrade"
+      #       echo "::set-output name=exists::true"
+      #     else
+      #       echo "Release does not exist, using helm install"
+      #       echo "::set-output name=exists::false"
+      #     fi
+  
+      # - name: Install or upgrade Helm chart
+      #   if: steps.helm-check.outputs.exists == 'false'
+      #   run: |
+      #     helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
+  
+      - name: Upgrade Helm chart
+        run: |
+          helm upgrade stage ./ad-devops/helm/ad-pulse  --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse 

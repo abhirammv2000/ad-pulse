@@ -9,7 +9,7 @@ def generate_advertiserid():
     formatted_time = time.strftime("%Y%m%d%H%M%S", current_time)
     milliseconds = int(time.time() * 1000) % 1000
     formatted_time += '{:03d}'.format(milliseconds)
-    return "P" + formatted_time
+    return "A" + formatted_time
 
 def create_advertiser(json_data):
     session = create_session()
@@ -26,23 +26,23 @@ def create_advertiser(json_data):
         updatedby=json_data.get('updatedby'),
         createdat=current_time,
         updatedat=current_time,
-        advertiserstate= States.CREATED.value,   
+        advertiserstate= States.CREATED.value
     )
     session.add(new_advertiser)
     session.commit()
 
-    # Return the created advertiser data
     created_advertiser = {
         'advertiserid': new_advertiser.advertiserid,
         'advertisername': new_advertiser.advertisername,
         'industry': new_advertiser.industry,
         'brands': new_advertiser.brands,
         'contactinfo': new_advertiser.contactinfo,
+        'advertisertype': new_advertiser.advertisertype,
         'createdby': new_advertiser.createdby,
         'updatedby': new_advertiser.updatedby,
         'createdat': new_advertiser.createdat.isoformat(),
         'updatedat': new_advertiser.updatedat.isoformat(),
-        'advertiserstate': new_advertiser.advertiserstate,      
+        'advertiserstate': new_advertiser.advertiserstate
     }
 
     session.close()
@@ -55,7 +55,6 @@ def update_advertiser(json_data):
     current_time = datetime.now()
     
     if advertiser:
-        # Update allowed fields
         advertiser.advertisername = json_data.get('advertisername', advertiser.advertisername)
         advertiser.industry = json_data.get('industry', advertiser.industry)
         advertiser.brands = json_data.get('brands', advertiser.brands)
@@ -63,10 +62,10 @@ def update_advertiser(json_data):
         advertiser.advertisertype = json_data.get('advertisertype', advertiser.advertisertype)
         advertiser.updatedby = json_data.get('updatedby', advertiser.updatedby)
         advertiser.updatedat = current_time
-        advertiser.advertiserstate = json_data.get('advertiserstate', advertiser.advertiserstate)
-
+        
         session.commit()
-        update_advertiser = {
+        
+        updated_advertiser = {
             'advertiserid': advertiser.advertiserid,
             'advertisername': advertiser.advertisername,
             'industry': advertiser.industry,
@@ -77,19 +76,20 @@ def update_advertiser(json_data):
             'updatedby': advertiser.updatedby,
             'createdat': advertiser.createdat.isoformat(),
             'updatedat': advertiser.updatedat.isoformat(),
-            'advertiserstate': advertiser.advertiserstate,
+            'advertiserstate': advertiser.advertiserstate
         }
-
+        
         session.close()
-        return update_advertiser
-    
+        
+        return updated_advertiser
     else:
         session.close()
         return None
-    
+
 def get_advertiser_by_id(advertiser_id):
     session = create_session()
     advertiser = session.query(Advertiser).filter_by(advertiserid=advertiser_id).first()
+    
     if advertiser:
         advertiser_data = {
             'advertiserid': advertiser.advertiserid,
@@ -102,18 +102,21 @@ def get_advertiser_by_id(advertiser_id):
             'updatedby': advertiser.updatedby,
             'createdat': advertiser.createdat.isoformat(),
             'updatedat': advertiser.updatedat.isoformat(),
-            'advertiserstate': advertiser.advertiserstate,
+            'advertiserstate': advertiser.advertiserstate
         }
+        
         session.close()
+        
         return advertiser_data
     else:
         session.close()
         return None
-    
+
 def get_all_advertisers():
     session = create_session()
     advertisers = session.query(Advertiser).all()
-    advertiser_list = []
+    
+    advertisers_data = []
     for advertiser in advertisers:
         advertiser_data = {
             'advertiserid': advertiser.advertiserid,
@@ -126,30 +129,32 @@ def get_all_advertisers():
             'updatedby': advertiser.updatedby,
             'createdat': advertiser.createdat.isoformat(),
             'updatedat': advertiser.updatedat.isoformat(),
-            'advertiserstate': advertiser.advertiserstate,
+            'advertiserstate': advertiser.advertiserstate
         }
-        advertiser_list.append(advertiser_data)
+        advertisers_data.append(advertiser_data)
+    
     session.close()
-    return advertiser_list
+    
+    return advertisers_data
 
 def update_advertiser_state(advertiser_id, new_state):
-   session = create_session()
-   advertiser = session.query(Advertiser).filter_by(advertiserid=advertiser_id).first()
+    session = create_session()
+    advertiser = session.query(Advertiser).filter_by(advertiserid=advertiser_id).first()
     
-   if advertiser:
+    if advertiser:
         advertiser.advertiserstate = new_state
         session.commit()
         session.close()
         return True
-   else:
+    else:
         session.close()
         return False
-   
+    
 def get_advertiser_by_state(advertiser_state):
     session = create_session()
     advertisers = session.query(Advertiser).filter_by(advertiserstate=advertiser_state).all()
     
-    advertisers_list = []
+    advertisers_data = []
     for advertiser in advertisers:
         advertiser_data = {
             'advertiserid': advertiser.advertiserid,
@@ -162,10 +167,10 @@ def get_advertiser_by_state(advertiser_state):
             'updatedby': advertiser.updatedby,
             'createdat': advertiser.createdat.isoformat(),
             'updatedat': advertiser.updatedat.isoformat(),
-            'advertiserstate': advertiser.advertiserstate,
+            'advertiserstate': advertiser.advertiserstate
         }
-        advertisers_list.append(advertiser_data)
+        advertisers_data.append(advertiser_data)
     
     session.close()
     
-    return advertisers_list
+    return advertisers_data
