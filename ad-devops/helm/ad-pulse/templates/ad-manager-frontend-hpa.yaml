@@ -1,7 +1,7 @@
 apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ Values.adpulse.ad_manager_frontend.name }}-hpa
+  name: {{ .Values.adpulse.ad_manager_frontend.name }}-hpa
   namespace: {{ .Values.adpulse.namespace.name }}
   labels:
     app: {{ Values.adpulse.ad_manager_frontend.name }}
