@@ -125,16 +125,16 @@ jobs:
 
         - name: Commit changes
           run: |
-            if [ "$FOLDERS" != "" ]; then
+            if [ -n "$(git status --porcelain)" ]; then
               git config --global user.name "GitHub Actions"
               git config --global user.email "actions@github.com"
               git add .
-              git commit -m "Bump version to $new_version"
+              git commit -m "Updating helm chart values.yaml"
               git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
             else
-                echo "No changes detected"
+              echo "No changes detected."
             fi
-          
+            
 
     deploy:
       needs: update-helm-chart
