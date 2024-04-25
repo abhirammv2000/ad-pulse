@@ -122,6 +122,18 @@ jobs:
             yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+
+        - name: Commit changes
+          run: |
+            if [ "$FOLDERS" != "" ]; then
+              git config --global user.name "GitHub Actions"
+              git config --global user.email "actions@github.com"
+              git add .
+              git commit -m "Bump version to $new_version"
+              git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
+            else
+                echo "No changes detected"
+            fi
           
 
     deploy:
@@ -160,7 +172,7 @@ jobs:
   
       - name: Upgrade Helm chart
         run: |
-          helm install stage ./ad-devops/helm/ad-pulse ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
+          helm install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace
 
 
 
