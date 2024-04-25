@@ -173,7 +173,4 @@ jobs:
       - name: Upgrade Helm chart
         run: |
           helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse
-
-
-
-# helm upgrade --install stage ./ad-devops/helm/ad-pulse ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse
+          helm install monitoring-stage prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
