@@ -165,9 +165,10 @@ jobs:
       - name: Set up Kubernetes cluster context
         run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_STAGE}} --project ${{ vars.GCP_PROJECT_ID_STAGE }}
   
-      - name: Configure Helm
+      - name: Configure Helm and add kube-prometheus-stack repository
         run: |
           helm repo add stable https://charts.helm.sh/stable
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo update
   
       - name: Upgrade Helm chart
