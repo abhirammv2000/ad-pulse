@@ -24,27 +24,32 @@ func (server *Server) adserve(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errResponse(err))
 		return
 	}
-	// adUnitAdress := server.config.AdManagerAddress + "/adunit?" + "adunit_id=" + reqParams.AdUnitId
-	// publisherAdress := server.config.AdManagerAddress + "/publisher?" + "publisher_id=" + reqParams.PublisherId
+	adUnitAdress := server.config.AdManagerAddress + "/adunit/" + "ad_unit_id/" + reqParams.AdUnitId
+	publisherAdress := server.config.AdManagerAddress + "/publisher/" + "publisherid/" + reqParams.PublisherId
 
-	// resp, err := http.Get(publisherAdress)
-	// if err != nil {
-	// 	ctx.JSON(http.StatusInternalServerError, errResponse(err))
-	// 	return
-	// }
-	// defer resp.Body.Close()
+	resp, err := http.Get(publisherAdress)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		return
+	}
+	defer resp.Body.Close()
 
-	// if resp.StatusCode != http.StatusOK {
-	// 	ctx.JSON(http.StatusNotFound, errResponse(err))
-	// 	return
-	// }
+	if resp.StatusCode != http.StatusOK {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "publisher not found"})
+		return
+	}
 
-	// resp, err = http.Get(adUnitAdress)
-	// if err != nil {
-	// 	ctx.JSON(http.StatusInternalServerError, errResponse(err))
-	// 	return
-	// }
-	// defer resp.Body.Close()
+	resp, err = http.Get(adUnitAdress)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "ad unit not found"})
+		return
+	}
 
 	campaignKey := "campaigns"
 	var campaignList []cache.Campaign
