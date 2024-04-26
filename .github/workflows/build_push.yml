@@ -135,6 +135,9 @@ jobs:
             else
               echo "No changes detected."
             fi
+
+        - name: sleeping 30 seconds
+          run: sleep 30
             
 
     deploy:
