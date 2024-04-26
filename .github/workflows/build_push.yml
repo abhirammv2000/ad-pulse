@@ -122,7 +122,7 @@ jobs:
             yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-            yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat ad-server-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+            yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml 
 
         - name: Commit changes
           run: |
