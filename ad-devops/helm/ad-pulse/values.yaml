@@ -87,7 +87,7 @@ adpulse:
       port: 8081
       targetPort: 8081
 hpa:
-  minReplicas: 3
+  minReplicas: 1
   maxReplicas: 100
   targetCPUUtilizationPercentage: 60
 replicaCount: 1
