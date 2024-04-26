@@ -15,7 +15,7 @@ import (
 
 var projectID = "ad-pulse-team1"
 var clkTopicID = "click-service-topic"
-var keyFilePath = "/Users/nihalsrinivasu/Downloads/ad-pulse-team1-dbdee446d2a9.json"
+var keyFilePath = "./ad-pulse-team1-dbdee446d2a9.json"
 
 const ()
 

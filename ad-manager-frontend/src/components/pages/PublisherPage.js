@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
+import { Link } from 'react-router-dom';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
@@ -21,7 +22,7 @@ const TableContainer = styled.div`
 `;
 
 
-const PublisherPage = (props) => {
+const PublisherPage = () => {
 
   const baseUrl = process.env.REACT_APP_API_BASE_URL
 
@@ -33,13 +34,10 @@ const PublisherPage = (props) => {
   const [preferenceLanguage, setPreferenceLanguage] = useState('English');
   const [preferenceTimezone, setPreferenceTimezone] = useState('UTC');
   // Will delete after login page
-  const [createdBy, setCreatedBy] = useState('Admin');
-  const [createdAt, setCreatedAt] = useState('2022-03-18T15:30:00');
-  const [updatedBy, setUpdatedBy] = useState('Admin');
-  const [updatedAt, setUpdatedAt] = useState('2022-03-18T15:30:00');
+  const createdBy = 'Admin';
+  const updatedBy = 'Admin';
 
   const [publishers, setPublishers] = useState([]);
-  const [selectedPublisher, setSelectedPublisher] = useState({});
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -47,11 +45,6 @@ const PublisherPage = (props) => {
 
   const handleClose = () => {
     setOpen(false);
-  };
-
-  const handlePublisherClick = (publisher) => {
-    setSelectedPublisher(publisher);
-    setOpen(true);
   };
 
   const handleSave = () => {
@@ -65,8 +58,6 @@ const PublisherPage = (props) => {
       publisherdomain: publisherDomain,
       createdby: createdBy,
       updatedby: updatedBy,
-      createdat: createdAt,
-      updatedat: updatedAt,
       preference: {
         language: preferenceLanguage,
         timezone: preferenceTimezone
@@ -82,6 +73,7 @@ const PublisherPage = (props) => {
         setPublisherDomain('');
         setPreferenceLanguage('English');
         setPreferenceTimezone('UTC');
+        fetchPublishers();
         handleClose();
       })
       .catch(error => {
@@ -90,8 +82,7 @@ const PublisherPage = (props) => {
       });
   };
 
-  useEffect(() => {
-    // Fetch publishers data from API
+  const fetchPublishers = () => {
     axios.get(`${baseUrl}/publisher`)
       .then(response => {
         setPublishers(response.data);
@@ -99,7 +90,23 @@ const PublisherPage = (props) => {
       .catch(error => {
         console.error('Error fetching publishers:', error);
       });
-  }, []); // Empty dependency array to fetch data only once on component mount
+  };
+
+  useEffect(() => {
+    fetchPublishers();
+  }, []);
+
+  const handleStateChange = (publisherId, currentState) => {
+    const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    axios.patch(`${baseUrl}/publisher?publisher_id=${publisherId}&state=${nextState}`)
+      .then(response => {
+        console.log('State changed successfully:', response.data);
+        fetchPublishers();
+      })
+      .catch(error => {
+        console.error('Error changing state:', error);
+      });
+  };
 
   return (
     <div style={{width: "100%", marginLeft: 0}}>
@@ -120,10 +127,18 @@ const PublisherPage = (props) => {
           </TableHead>
           <TableBody>
             {publishers.map((publisher) => (
-              <TableRow key={publisher._id} onClick={() => handlePublisherClick(publisher)}>
-                <TableCell>{publisher.publisherid}</TableCell>
+              <TableRow key={publisher._id} >
+                <TableCell><Link to={`/inventory/${publisher.publisherid}`}>{publisher.publisherid}</Link></TableCell>
                 <TableCell>{publisher.publishername}</TableCell>
-                <TableCell>{publisher.publisherstate}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="contained"
+                    color={publisher.publisherstate === 'ACTIVE' ? 'secondary' : 'primary'}
+                    onClick={() => handleStateChange(publisher.publisherid, publisher.publisherstate)}
+                  >
+                    {publisher.publisherstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

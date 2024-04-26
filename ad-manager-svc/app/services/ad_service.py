@@ -202,3 +202,36 @@ def update_ad(json_data):
     else:
         session.close()
         return False
+    
+def get_ad_by_campaign_and_advertiser_id(advertiser_id, campaign_id):
+    session = create_session()
+    print(campaign_id, advertiser_id)
+    ads = session.query(Ad).filter_by(campaignid=campaign_id, advertiserid=advertiser_id).all()
+    print(ads)
+    ads_data = []
+    for ad in ads:
+        ad_data = {
+            'adid': ad.adid,
+            'adname': ad.adname,
+            'campaignid': ad.campaignid,
+            'advertiserid': ad.advertiserid,
+            'creativeid': ad.creativeid,
+            'startdate': ad.startdate.isoformat(),
+            'enddate': ad.enddate.isoformat(),
+            'landingurl': ad.landingurl,
+            'budget': ad.budget,
+            'frequencycaps': ad.frequencycaps,
+            'bidinfo': ad.bidinfo,
+            'adtype': ad.adtype,
+            'adpriority': ad.adpriority,
+            'targetinginfo': ad.targetinginfo,
+            'createdby': ad.createdby,
+            'updatedby': ad.updatedby,
+            'createdat': ad.createdat,
+            'updatedat': ad.updatedat,
+            'adstate': ad.adstate,
+            'ad_unit_targeted': ad.ad_unit_targeted
+        }
+        ads_data.append(ad_data)
+    session.close()
+    return ads_data
