@@ -1,0 +1,5 @@
+google-cloud
+google-cloud-pubsub
+supabase
+psycopg2-binary
+pymongo
