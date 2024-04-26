@@ -20,6 +20,11 @@ spec:
         - name: {{ .Values.adpulse.ad_manager_frontend.name }}
           image: "{{ .Values.adpulse.ad_manager_frontend.image.repository }}:{{ .Values.adpulse.ad_manager_frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: REACT_APP_API_BASE_URL
+              value: "http://{{ .Values.adpulse.ad_manager_svc.name }}:{{ .Values.adpulse.ad_manager_svc.service.port }}"
+            - name: REACT_APP_API_AD_SERVER_URL
+              value: "http://{{ .Values.adpulse.ad_server_svc.name }}:{{ .Values.adpulse.ad_server_svc.service.port }}"
           ports:
             - name: http
               containerPort: {{ .Values.adpulse.ad_manager_frontend.service.targetPort }}
