@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.name }}
+  namespace: {{ .Values.adpulse.namespace.name }}
+  labels:
+    {{ .Values.adpulse.adpulse_engagement_subscriber_svc.labels | toYaml | nindent 4}}
+spec:
+  replicas: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.replicaCount }}
+  selector:
+    matchLabels:
+      {{ .Values.adpulse.adpulse_engagement_subscriber_svc.selectorLabels | toYaml | nindent 6}}
+  template:
+    metadata:
+      labels:
+        {{ .Values.adpulse.adpulse_engagement_subscriber_svc.selectorLabels | toYaml | nindent 8}}
+    spec:
+      serviceAccountName: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.serviceAccountName }}
+      containers:
+        - name: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.name }}
+          image: "{{ .Values.adpulse.adpulse_engagement_subscriber_svc.image.repository }}:{{ .Values.adpulse.adpulse_engagement_subscriber_svc.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.service.port }}
+              protocol: TCP
+          # livenessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: http
