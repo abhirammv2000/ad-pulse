@@ -1,0 +1,91 @@
+name: Build and Push to Docker Hub
+
+on:
+    push:
+        branches:
+            - main
+
+env:
+    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+    DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
+jobs:
+    update-helm-chart:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v2
+            with:
+              ref: stage
+              fetch-depth: 5
+  
+          - name: install yq
+            run: |
+              wget https://github.com/mikefarah/yq/releases/download/v4.12.0/yq_linux_amd64.tar.gz -O /tmp/yq.tar.gz
+              tar xvf /tmp/yq.tar.gz -C /tmp/
+              mv /tmp/yq_linux_amd64 /usr/local/bin/yq
+              chmod +x /usr/local/bin/yq
+  
+          - name: Update Helm chart
+            run: |
+              yq eval '.adpulse.ad_manager_svc.image.tag = "'"$(cat ad-manager-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+              yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+              yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+              yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+              yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml 
+  
+          - name: Commit changes
+            run: |
+              if [ -n "$(git status --porcelain)" ]; then
+                git config --global user.name "GitHub Actions"
+                git config --global user.email "actions@github.com"
+                git add .
+                git commit -m "Updating helm chart values.yaml"
+                git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
+              else
+                echo "No changes detected."
+              fi
+  
+          - name: sleeping 30 seconds
+            run: sleep 30
+              
+  
+    deploy:
+        needs: update-helm-chart
+        runs-on: ubuntu-latest
+        
+        steps:
+        - name: Checkout repository
+          uses: actions/checkout@v2
+    
+        - name: Set up Google Cloud SDK
+          uses: google-github-actions/setup-gcloud@v0.2.0
+          with:
+            service_account_key: ${{ secrets.GCP_SA_KEY_PROD }}
+            project_id: ${{ vars.GCP_PROJECT_ID_PROD }}
+            export_default_credentials: true
+          
+        - name: Install kubectl
+          run: |
+            gcloud components install kubectl
+            gcloud components install gke-gcloud-auth-plugin
+        
+        - name: Authenticate with Google Cloud
+          run: |
+            printf "%s" '${{ secrets.GCP_SA_KEY_PROD }}' > key.json
+            gcloud auth activate-service-account --key-file=key.json
+  
+    
+        - name: Set up Kubernetes cluster context
+          run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_PROD}} --project ${{ vars.GCP_PROJECT_ID_PROD }}
+    
+        - name: Configure Helm and add kube-prometheus-stack repository
+          run: |
+            helm repo add stable https://charts.helm.sh/stable
+            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+            helm repo update
+    
+        - name: Upgrade Helm chart
+          run: |
+            helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"
