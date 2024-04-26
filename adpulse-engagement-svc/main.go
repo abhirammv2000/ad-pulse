@@ -22,13 +22,17 @@ func main() {
 	supaClient := supabase.CreateClient(supabaseUrl, supabaseKey)
 
 	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"*"} // Change this to your allowed origins
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
+	router.Use(cors.New(config))
+
 	// define router group
 	engagementGroup := router.Group("/engagement")
 	{
 		engagementGroup.GET("/clk", services.ClickServiceHandler(supaClient))
 		engagementGroup.GET("/csc", services.CSCServiceHandler(supaClient))
 	}
-	router.Use(cors.New(config))
+
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
