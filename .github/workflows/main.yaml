@@ -42,7 +42,7 @@ jobs:
                 git config --global user.email "actions@github.com"
                 git add .
                 git commit -m "Updating helm chart values.yaml"
-                git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
+                git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
               else
                 echo "No changes detected."
               fi
@@ -78,7 +78,7 @@ jobs:
   
     
         - name: Set up Kubernetes cluster context
-          run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_STAGE }} --zone ${{ vars.GCP_CLUSTER_ZONE_PROD}} --project ${{ vars.GCP_PROJECT_ID_PROD }}
+          run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_PROD }} --zone ${{ vars.GCP_CLUSTER_ZONE_PROD}} --project ${{ vars.GCP_PROJECT_ID_PROD }}
     
         - name: Configure Helm and add kube-prometheus-stack repository
           run: |
@@ -88,4 +88,4 @@ jobs:
     
         - name: Upgrade Helm chart
           run: |
-            helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"
+            helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"
