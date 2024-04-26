@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Typography from '@mui/material/Typography';
+import CreativeCard from '../CreativeCard';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -75,13 +73,14 @@ const CampaignsPage = () => {
       <Button 
         variant="contained" 
         onClick={() => handleViewCreatives()}
-        style={{ marginRight: 10 }}>
+        style={{ marginLeft: 600, marginTop:"40px", right: 0 }}>
         View Creatives
       </Button>
 
       <Button 
         variant="contained" 
-        onClick={() => handleAddCampaign()}>
+        onClick={() => handleAddCampaign()}
+        style={{ marginLeft: "20px", marginTop:"40px", right: 0 }}>
         Add Campaign
       </Button>
 
@@ -105,36 +104,8 @@ const CampaignsPage = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
-      <Dialog open={openCreatives} onClose={handleCloseCreatives} maxWidth="md" fullWidth style={{height: "500px"}}>
-        <Card>
-          <CardContent>
-            <Typography variant="h5" component="h2">
-              Creatives
-            </Typography>
-            <TableContainer component={Paper} style={{ marginTop: 10 }}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Creative ID</TableCell>
-                    <TableCell>Creative Name</TableCell>
-                    {/* Add more creative fields as needed */}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {creatives.map((creative) => (
-                    <TableRow key={creative.id}>
-                      <TableCell>{creative.creativeid}</TableCell>
-                      <TableCell>{creative.creativename}</TableCell>
-                      {/* Add more creative fields as needed */}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Dialog>
+      
+      <CreativeCard open={openCreatives} handleClose={handleCloseCreatives} creatives={creatives} advertiserId={AdvId} refreshCreatives={fetchCreatives} />
 
       <Dialog open={openAddCampaignDialog} onClose={handleCloseAddCampaignDialog}>
         <DialogTitle>Add New Campaign</DialogTitle>
