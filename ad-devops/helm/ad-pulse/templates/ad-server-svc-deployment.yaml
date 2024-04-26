@@ -20,6 +20,9 @@ spec:
         - name: {{ .Values.adpulse.ad_server_svc.name }}
           image: "{{ .Values.adpulse.ad_server_svc.image.repository }}:{{ .Values.adpulse.ad_server_svc.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: AD_MANAGER_ADDRESS
+              value: {{ .Values.ad_manager_url }}
           ports:
             - name: http
               containerPort: {{ .Values.adpulse.ad_server_svc.service.port }}

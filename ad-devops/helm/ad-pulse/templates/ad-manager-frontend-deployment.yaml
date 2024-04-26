@@ -22,9 +22,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: REACT_APP_API_BASE_URL
-              value: "http://{{ .Values.adpulse.ad_manager_svc.name }}:{{ .Values.adpulse.ad_manager_svc.service.port }}"
+              value: {{ .Values.ad_manager_url }}
             - name: REACT_APP_API_AD_SERVER_URL
-              value: "http://{{ .Values.adpulse.ad_server_svc.name }}:{{ .Values.adpulse.ad_server_svc.service.port }}"
+              value: {{ .Values.ad_server_url }}
           ports:
             - name: http
               containerPort: {{ .Values.adpulse.ad_manager_frontend.service.targetPort }}
