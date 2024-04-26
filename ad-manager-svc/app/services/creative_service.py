@@ -19,7 +19,7 @@ def create_creative(json_data):
         creativeid=generate_creativeid(),
         creativetype=json_data.get('creativetype'),
         creativename=json_data.get('creativename'),
-        creativestate=States.CREATED.value,
+        creativestate=States.ACTIVE.value,
         advertiserid=json_data.get('advertiserid'),
         createdby=json_data.get('createdby'),
         updatedby=json_data.get('updatedby'),
