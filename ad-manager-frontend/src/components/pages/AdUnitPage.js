@@ -48,6 +48,18 @@ const AdUnitPage = () => {
       console.error('Error adding ad unit:', error);
     }
   };
+
+  const handleStateChange = (adUnitId, currentState) => {
+    const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    axios.patch(`${baseUrl}/adunit?ad_unit_id=${adUnitId}&state=${nextState}`)
+      .then(response => {
+        console.log('State changed successfully:', response.data);
+        fetchData();
+      })
+      .catch(error => {
+        console.error('Error changing state:', error);
+      });
+  };
   
 
   return (
@@ -69,7 +81,15 @@ const AdUnitPage = () => {
             <TableRow key={adUnit.adUnitId}>
               <TableCell>{adUnit.adunitid}</TableCell>
               <TableCell>{adUnit.adunitname}</TableCell>
-              <TableCell>{adUnit.adunitstate}</TableCell>
+              <TableCell>
+                <Button
+                  variant="contained"
+                  color={adUnit.adunitstate === 'ACTIVE' ? 'secondary' : 'primary'}
+                  onClick={() => handleStateChange(adUnit.adunitid, adUnit.adunitstate)}
+                >
+                  {adUnit.adunitstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

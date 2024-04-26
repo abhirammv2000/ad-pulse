@@ -96,6 +96,18 @@ const PublisherPage = () => {
     fetchPublishers();
   }, []);
 
+  const handleStateChange = (publisherId, currentState) => {
+    const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    axios.patch(`${baseUrl}/publisher?publisher_id=${publisherId}&state=${nextState}`)
+      .then(response => {
+        console.log('State changed successfully:', response.data);
+        fetchPublishers();
+      })
+      .catch(error => {
+        console.error('Error changing state:', error);
+      });
+  };
+
   return (
     <div style={{width: "100%", marginLeft: 0}}>
       <Button 
@@ -118,7 +130,15 @@ const PublisherPage = () => {
               <TableRow key={publisher._id} >
                 <TableCell><Link to={`/inventory/${publisher.publisherid}`}>{publisher.publisherid}</Link></TableCell>
                 <TableCell>{publisher.publishername}</TableCell>
-                <TableCell>{publisher.publisherstate}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="contained"
+                    color={publisher.publisherstate === 'ACTIVE' ? 'secondary' : 'primary'}
+                    onClick={() => handleStateChange(publisher.publisherid, publisher.publisherstate)}
+                  >
+                    {publisher.publisherstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
