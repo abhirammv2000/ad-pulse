@@ -89,7 +89,7 @@ adpulse:
 hpa:
   minReplicas: 1
   maxReplicas: 100
-  targetCPUUtilizationPercentage: 60
+  targetCPUUtilizationPercentage: 80
 replicaCount: 1
 image:
   repository: nginx
