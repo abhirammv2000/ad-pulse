@@ -13,6 +13,7 @@ import TableBody from '@mui/material/TableBody';
 import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import styled from '@emotion/styled';
+import { Link } from 'react-router-dom';
 import {
     Select,
     MenuItem,
@@ -69,20 +70,20 @@ const AdvertiserPage = (props) => {
         advertisername: advertiserName,
         industry: industry,
         brands: brands,
-        contactInfo: {
+        contactinfo: {
           name: contactName,
           address: contactAddress,
           email: contactEmail,
           phone: contactPhone
         },
-        advertiserType: advertiserType,
-        createdBy: createdBy,
-        updatedBy: updatedBy,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        advertiseryype: advertiserType,
+        createdby: createdBy,
+        updatedby: updatedBy,
+        createdat: createdAt,
+        updatedat: updatedAt,
         
     };
-    axios.post(`${baseUrl}/advetiser`, data)
+    axios.post(`${baseUrl}/advertiser`, data)
       .then(response => {
         console.log('Data sent successfully:', response.data);
         // Reset input fields
@@ -94,7 +95,7 @@ const AdvertiserPage = (props) => {
         setContactEmail('');
         setContactPhone('');
         setAdvertiserType('');
-
+        fetchAdvertisers();
         handleClose();
       })
       .catch(error => {
@@ -103,16 +104,31 @@ const AdvertiserPage = (props) => {
       });
   };
 
-  useEffect(() => {
-    // Fetch publishers data from API
-    axios.get(`${baseUrl}/publisher`)
+  const fetchAdvertisers = () => {
+    axios.get(`${baseUrl}/advertiser`)
       .then(response => {
         setAdvertisers(response.data);
       })
       .catch(error => {
-        console.error('Error fetching publishers:', error);
+        console.error('Error fetching advertisers:', error);
       });
+  };
+
+  useEffect(() => {
+    fetchAdvertisers();
   }, []); // Empty dependency array to fetch data only once on component mount
+
+  const handleStateChange = (advertiserId, currentState) => {
+    const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    axios.patch(`${baseUrl}/advertiser?advertiser_id=${advertiserId}&state=${nextState}`)
+      .then(response => {
+        console.log('State changed successfully:', response.data);
+        fetchAdvertisers();
+      })
+      .catch(error => {
+        console.error('Error changing state:', error);
+      });
+  };
   
 
   return (
@@ -135,9 +151,17 @@ const AdvertiserPage = (props) => {
           <TableBody>
             {advertisers.map((advertiser) => (
               <TableRow key={advertiser._id} >
-                <TableCell>{advertiser.advertiserid}</TableCell>
-                <TableCell>{advertiser.advertiserName}</TableCell>
-                <TableCell>{advertiser.advertiserid}</TableCell>
+                <TableCell><Link to={`/demand/${advertiser.advertiserid}`}>{advertiser.advertiserid}</Link></TableCell>
+                <TableCell>{advertiser.advertisername}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="contained"
+                    color={advertiser.advertiserstate === 'ACTIVE' ? 'secondary' : 'primary'}
+                    onClick={() => handleStateChange(advertiser.advertiserid, advertiser.advertiserstate)}
+                  >
+                    {advertiser.advertiserstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
