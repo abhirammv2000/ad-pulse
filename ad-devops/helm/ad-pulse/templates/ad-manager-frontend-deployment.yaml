@@ -20,6 +20,13 @@ spec:
         - name: {{ .Values.adpulse.ad_manager_frontend.name }}
           image: "{{ .Values.adpulse.ad_manager_frontend.image.repository }}:{{ .Values.adpulse.ad_manager_frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 1000m
+            limits:
+              memory: 4Gi
+              cpu: 2000m
           env:
             - name: REACT_APP_API_BASE_URL
               value: {{ .Values.ad_manager_url }}
