@@ -20,9 +20,21 @@ spec:
         - name: {{ .Values.adpulse.ad_manager_frontend.name }}
           image: "{{ .Values.adpulse.ad_manager_frontend.image.repository }}:{{ .Values.adpulse.ad_manager_frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            requests:
+              memory: 4Gi
+              cpu: 3000m
+            limits:
+              memory: 6Gi
+              cpu: 4000m
+          env:
+            - name: REACT_APP_API_BASE_URL
+              value: {{ .Values.ad_manager_url }}
+            - name: REACT_APP_API_AD_SERVER_URL
+              value: {{ .Values.ad_server_url }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.adpulse.ad_manager_frontend.service.targetPort }}
               protocol: TCP
           # livenessProbe:
           #   httpGet:

@@ -1,6 +1,6 @@
 from flask import request, jsonify, Blueprint
 from app.enums.States import States
-from app.services.ad_unit_service import create_ad_unit, update_ad_unit, get_ad_unit_by_id, get_all_ad_units, update_ad_unit_state, get_ad_unit_by_state
+from app.services.ad_unit_service import create_ad_unit, update_ad_unit, get_ad_unit_by_id, get_all_ad_units, update_ad_unit_state, get_ad_unit_by_state, get_ad_unit_by_publisher
 
 ad_unit_blueprint = Blueprint('adunit', __name__)
 
@@ -68,4 +68,13 @@ def get_ad_unit_by_state_api(state):
     if state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     ad_units = get_ad_unit_by_state(state)
+    return ad_units, 200
+
+@ad_unit_blueprint.route('/adunit/publisher/<publisher_id>', methods=['GET'])
+def get_ad_unit_by_publisher_api(publisher_id):
+    if not publisher_id:
+        return jsonify({'error': 'Publisher ID not provided'}), 400
+    ad_units = get_ad_unit_by_publisher(publisher_id)
+    if not ad_units:
+        return jsonify({'error': 'Publisher not found'}), 404
     return ad_units, 200

@@ -1,6 +1,6 @@
 from flask import request, jsonify, Blueprint
 from app.enums.States import States
-from app.services.ad_service import get_all_ads, create_ad, get_ad_by_id, get_ad_by_state, update_ad_state, update_ad
+from app.services.ad_service import get_all_ads, create_ad, get_ad_by_id, get_ad_by_state, update_ad_state, update_ad, get_ad_by_campaign_and_advertiser_id
 
 ad_blueprint = Blueprint('ad', __name__)
 
@@ -71,3 +71,9 @@ def update_ad_api():
         }), 200
     else:
         return jsonify({'error': 'Ad not found'}), 404
+    
+@ad_blueprint.route('/ad/advertiser/<advertiser_id>/campaign/<campaign_id>', methods=['GET'])
+def get_ad_by_campaign_and_advertiser_api(advertiser_id, campaign_id):
+    # Get the ad
+    ads = get_ad_by_campaign_and_advertiser_id(advertiser_id, campaign_id)
+    return ads, 200

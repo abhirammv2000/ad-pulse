@@ -1,7 +1,7 @@
 from flask import request, jsonify, Blueprint
 import requests
 from app.enums.States import States
-from app.services.creative_service import create_creative, update_creative, get_creative_by_id, get_all_creatives, update_creative_state, get_creative_by_state
+from app.services.creative_service import create_creative, update_creative, get_creative_by_id, get_all_creatives, update_creative_state, get_creative_by_state, get_creative_by_advertiser_id
 
 creative_blueprint = Blueprint('creative', __name__)
 
@@ -97,4 +97,9 @@ def get_creative_by_state_api(state):
     if state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     creatives = get_creative_by_state(state)
+    return jsonify(creatives), 200
+
+@creative_blueprint.route('/creative/advertiser/<advertiser_id>', methods=['GET'])
+def get_creative_by_advertiser_api(advertiser_id):
+    creatives = get_creative_by_advertiser_id(advertiser_id)
     return jsonify(creatives), 200

@@ -9,6 +9,12 @@ type Config struct {
 	DBSource         string `mapstructure:"DB_SOURCE"`
 	ServerAddress    string `mapstructure:"SERVER_ADDRESS"`
 	AdManagerAddress string `mapstructure:"AD_MANAGER_ADDRESS"`
+	RedisHost        string `mapstructure:"REDIS_HOST"`
+	RedisPort        string `mapstructure:"REDIS_PORT"`
+	RedisUsername    string `mapstructure:"REDIS_USERNAME"`
+	RedisPassword    string `mapstructure:"REDIS_PASSWORD"`
+	ClickUrl         string `mapstructure:"CLICK_URL"`
+	RenderUrl        string `mapstructure:"RENDER_URL"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
