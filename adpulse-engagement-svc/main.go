@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"adpulse-engagement-svc.com/services"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/knadh/koanf/v2"
 	"github.com/nedpals/supabase-go"
@@ -20,12 +21,14 @@ func main() {
 	supabaseKey := getEnv("SUPABASE_KEY", "")
 	supaClient := supabase.CreateClient(supabaseUrl, supabaseKey)
 
+	config := cors.DefaultConfig()
 	// define router group
 	engagementGroup := router.Group("/engagement")
 	{
 		engagementGroup.GET("/clk", services.ClickServiceHandler(supaClient))
 		engagementGroup.GET("/csc", services.CSCServiceHandler(supaClient))
 	}
+	router.Use(cors.New(config))
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
