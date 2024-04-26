@@ -64,7 +64,7 @@ def callbackClk(message):
     msg = message.data.decode()
     try:
         json_data = json.loads(msg)
-        update_db(json_data['adId'], "click")
+        update_db(json_data['adid'], "click")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
     message.ack()
@@ -74,7 +74,7 @@ def callbackCsc(message):
     msg = message.data.decode()
     try:
         json_data = json.loads(msg)
-        update_db(json_data['adId'], "render")
+        update_db(json_data['adid'], "render")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
     message.ack()
