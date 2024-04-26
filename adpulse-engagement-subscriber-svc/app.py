@@ -14,7 +14,7 @@ subscription_id_clk = "click-service-topic-sub"
 subscription_id_render = "csc-service-topic-sub"
 
 # Set the path to your service account key file (outside the loop)
-key_path = "/Users/nihalsrinivasu/Downloads/ad-pulse-team1-dbdee446d2a9.json"
+key_path = "./ad-pulse-team1-dbdee446d2a9.json"
 
 # Create credentials object from the service account key file (once)
 credentials = service_account.Credentials.from_service_account_file(key_path)

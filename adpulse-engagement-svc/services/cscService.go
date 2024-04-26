@@ -12,21 +12,6 @@ import (
 
 var cscTopicID = "csc-service-topic"
 
-// func CSCServiceHandler(supabaseClient *supabase.Client) gin.HandlerFunc {
-// 	return func(ctx *gin.Context) {
-// 		var results map[string]interface{}
-// 		err := supabaseClient.DB.From("ads").Select("*").Single().Execute(&results)
-// 		if err != nil {
-// 			ctx.IndentedJSON(http.StatusInternalServerError, gin.H{
-// 				"status":  "error",
-// 				"message": err.Error(),
-// 			})
-// 			return
-// 		}
-// 		ctx.IndentedJSON(http.StatusOK, results)
-// 	}
-// }
-
 func CSCServiceHandler(supabaseClient *supabase.Client) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		iId := ctx.Query("iid")
