@@ -4,6 +4,7 @@ import NavBar from './components/NavBar';
 import HomePage from './components/pages/HomePage';
 import PublisherPage from './components/pages/PublisherPage'; // Import PublisherPage component
 import AdvertiserPage from './components/pages/AdvertiserPage';
+import AdUnitPage from './components/pages/AdUnitPage'; // Import AdUnitPage component
 
 function App() {
   return (
@@ -13,8 +14,9 @@ function App() {
         <div style={{ padding: '20px' }}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/inventory/publisher" element={<PublisherPage />} /> {/* Add route for PublisherPage */}
-            <Route path="/demand/advertiser" element={<AdvertiserPage />} />
+            <Route path="/inventory" element={<PublisherPage />} /> {/* Add route for PublisherPage */}
+            <Route path="/demand" element={<AdvertiserPage />} />
+            <Route path="/inventory/:PubId" element={<AdUnitPage />} /> {/* Add route for AdUnitPage */}
           </Routes>
         </div>
       </div>
