@@ -19,8 +19,12 @@ const ColorDiv = styled.div`
 
 const NavBarContainer = styled.div`
   background-color: cornflowerblue;
-  height: 100vh;
-  overflow-y: auto;
+  height: 100vw;
+  overflow: auto;
+  position: fixed;
+  top: 0;
+  left: 0;
+  
 `;
 
 const StyledList = styled(List)`
