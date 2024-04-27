@@ -113,7 +113,7 @@ const PublisherPage = () => {
       <Button 
         variant="contained" 
         onClick={handleClickOpen}
-        style={{ marginLeft: 600, marginTop:"40px", right: 0 }}>
+        style={{ marginLeft: 1000, marginTop:"40px", right: 0 }}>
         Add new publisher
       </Button>
       <TableContainer>
