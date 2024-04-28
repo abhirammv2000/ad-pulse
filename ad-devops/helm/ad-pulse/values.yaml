@@ -100,7 +100,7 @@ adpulse:
     image:
       repository: adpulse18/adpulse-engagement-subscriber-svc
       pullPolicy: Always
-      tag: "0.0.3"
+      tag: "0.0.4"
     service:
       type: LoadBalancer
       port: 5000
