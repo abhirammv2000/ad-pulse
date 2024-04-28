@@ -1,144 +1,84 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import patch, Mock
 
 from app.services.advertiser_service import get_all_advertisers, create_advertiser, get_advertiser_by_id, \
     get_advertiser_by_state, update_advertiser_state, update_advertiser
 
 
 class TestAdvertiserService(unittest.TestCase):
-    def setUp(self):
-        # Mocking the create_session function
-        self.mock_create_session = MagicMock()
-        self.session_mock = MagicMock()
-        self.mock_create_session.return_value = self.session_mock
 
-    def get_adv_id_by_name(self, json_data, ad_name):
-        for adv in json_data:
-            if adv.get('advertisername') == ad_name:
-                return adv.get('advertiserid')
+    @patch('app.services.advertiser_service.create_session')
+    def test_get_all_advertisers(self, mock_create_session):
+        mock_session = Mock()
+        mock_get_all_ads = [
+            Mock(advertiserid='A123')
+        ]
+        mock_session.query().all.return_value = mock_get_all_ads
+        mock_create_session.return_value = mock_session
 
-    def test_create_advertiser(self):
-        # Test case for create_advertiser function
-        json_data = {
-            "advertiserid": "",
-            "advertisername": "test1Aditi",
-            "industry": "IT",
-            "brands": ["test"],
-            "contactinfo": {
-                "email": "asdf@gmail.com"
-            },
-            "advertisertype": "GUARANTEED",
-            "createdby": "aditi@gmail.com ",
-            "updatedby": "admin",
-            "createdat": "2024-03-17T21:05:56",
-            "updatedat": "2024-03-17T21:05:56",
-            "advertiserstate": "CREATED"
-        }
+        result = get_all_advertisers()
+        assert result[0]['advertiserid'] == 'A123'
+        assert len(result) == 1
 
-        created_advertiser = create_advertiser(json_data)
-        self.assertIsNotNone(created_advertiser)
-        self.assertEqual(created_advertiser['advertisername'], json_data['advertisername'])
+    @patch('app.services.advertiser_service.create_session')
+    def test_get_advertiser_by_id(self, mock_create_session):
+        mock_session = Mock()
+        mock_get_ad = Mock(advertiserid='A123')
+        mock_session.query().filter_by().first.return_value = mock_get_ad
+        mock_create_session.return_value = mock_session
 
-    def test_get_all_advertisers(self):
-        all_advertisers = get_all_advertisers()
-        self.assertIsNotNone(all_advertisers)
-        self.assertIn("test1Aditi", [advertiser['advertisername'] for advertiser in all_advertisers])
+        result = get_advertiser_by_id('A123')
+        assert result['advertiserid'] == 'A123'
 
-    def test_get_advertiser_by_id(self):
-        json_data = {
-            "advertiserid": "",
-            "advertisername": "test1Aditi",
-            "industry": "IT",
-            "brands": ["test"],
-            "contactinfo": {
-                "email": "asdf@gmail.com"
-            },
-            "advertisertype": "GUARANTEED",
-            "createdby": "aditi@gmail.com ",
-            "updatedby": "admin",
-            "createdat": "2024-03-17T21:05:56",
-            "updatedat": "2024-03-17T21:05:56",
-            "advertiserstate": "CREATED"
-        }
-        created_advertiser = create_advertiser(json_data)
-        adv_id = created_advertiser['advertiserid']
-        advertiser = get_advertiser_by_id(adv_id)
-        self.assertIsNotNone(advertiser)
-        self.assertEqual(advertiser['advertiserid'], adv_id)
+    @patch('app.services.advertiser_service.create_session')
+    def test_create_advertiser(self, mock_create_session):
+        mock_create_session.return_value = Mock()
 
-    def test_update_advertiser_state(self):
-        json_data = {
-            "advertiserid": "",
-            "advertisername": "test1Aditi",
-            "industry": "IT",
-            "brands": ["test"],
-            "contactinfo": {
-                "email": "asdf@gmail.com"
-            },
-            "advertisertype": "GUARANTEED",
-            "createdby": "aditi@gmail.com ",
-            "updatedby": "admin",
-            "createdat": "2024-03-17T21:05:56",
-            "updatedat": "2024-03-17T21:05:56",
-            "advertiserstate": "CREATED"
-        }
+        result = create_advertiser(
+            {'advertisername': 'test', 'industry': 'test', 'brands': 'test', 'contactinfo': 'test',
+             'advertisertype': 'test', 'createdby': 'test', 'updatedby': 'test', 'advertiserstate': 'test'})
+        id = result['advertiserid']
+        ca = result['createdat']
+        st = result['advertiserstate']
+        ua = result['updatedat']
+        assert result['advertisername'] == 'test'
+        assert result == {'advertiserid': id, 'advertisername': 'test', 'industry': 'test', 'brands': 'test',
+                          'contactinfo': 'test', 'advertisertype': 'test', 'createdby': 'test', 'updatedby': 'test',
+                          'advertiserstate': st, 'createdat': ca, 'updatedat': ua}
 
-        created_advertiser = create_advertiser(json_data)
-        adv_id = created_advertiser['advertiserid']
-        state = "INACTIVE"
-        update_advertiser_state(adv_id, state)
-        updated_advertiser = get_advertiser_by_id(adv_id)
-        self.assertIsNotNone(updated_advertiser)
-        self.assertEqual(updated_advertiser['advertiserstate'], state)
+    @patch('app.services.advertiser_service.create_session')
+    def test_update_advertiser(self, mock_create_session):
+        mock_create_session.return_value = Mock()
 
-    def test_update_advertiser(self):
-        json_data = {
-            "advertiserid": "",
-            "advertisername": "test1Aditi",
-            "industry": "IT",
-            "brands": ["test"],
-            "contactinfo": {
-                "email": "asdf@gmail.com"
-            },
-            "advertisertype": "GUARANTEED",
-            "createdby": "aditi@gmail.com ",
-            "updatedby": "admin",
-            "createdat": "2024-03-17T21:05:56",
-            "updatedat": "2024-03-17T21:05:56",
-            "advertiserstate": "CREATED"
-        }
+        ca = create_advertiser(
+            {'advertisername': 'test', 'industry': 'test', 'brands': 'test', 'contactinfo': 'test',
+             'advertisertype': 'test', 'createdby': 'test', 'updatedby': 'test', 'advertiserstate': 'test'})
+        id = ca['advertiserid']
+        result = update_advertiser(
+            {'advertiserid': id, 'advertisername': 'testUpdate', 'industry': 'test', 'brands': 'test',
+             'contactinfo': 'test', 'advertisertype': 'test', 'createdby': 'test', 'updatedby': 'test',
+             'advertiserstate': 'test'})
+        assert result['advertisername'] == 'testUpdate'
 
-        created_advertiser = create_advertiser(json_data)
-        adv_id = created_advertiser['advertiserid']
+    @patch('app.services.advertiser_service.create_session')
+    def test_update_advertiser_state(self, mock_create_session):
+        mock_create_session.return_value = Mock()
 
-        updated_json_data = {
-            "advertiserid": adv_id,
-            "advertisername": "test1Aditi",
-            "industry": "IT",
-            "brands": ["test45"],
-            "contactinfo": {
-                "email": "asdf1234@gmail.com"
-            },
-            "advertisertype": "GUARANTEED",
-            "createdby": "aditi@gmail.com ",
-            "updatedby": "admin",
-            "createdat": "2024-03-17T21:05:56",
-            "updatedat": "2024-03-17T21:05:56",
-            "advertiserstate": "CREATED"
-        }
+        ca = create_advertiser(
+            {'advertisername': 'test', 'industry': 'test', 'brands': 'test', 'contactinfo': 'test',
+             'advertisertype': 'test', 'createdby': 'test', 'updatedby': 'test', 'advertiserstate': 'test'})
+        id = ca['advertiserid']
+        result = update_advertiser_state(id, 'testUpdate')
+        assert result == True
 
-        update_advertiser(updated_json_data)
-        updated_advertiser = get_advertiser_by_id(adv_id)
-        self.assertIsNotNone(updated_advertiser)
-        self.assertEqual(updated_advertiser['brands'], updated_json_data['brands'])
-        self.assertEqual(updated_advertiser['contactinfo'], updated_json_data['contactinfo'])
-
-    def test_get_advertiser_by_state(self):
-        adv_state = "INACTIVE"
-        advs = get_advertiser_by_state(adv_state)
-        self.assertIsNotNone(advs)
-        self.assertIn("test1Aditi", [advertiser['advertisername'] for advertiser in advs])
+    @patch('app.services.advertiser_service.create_session')
+    def test_get_advertiser_by_state(self, mock_create_session):
+        mock_session = Mock()
+        mock_query = mock_session.query.return_value
+        mock_query.filter_by.return_value.all.return_value = [ Mock(advertisername= 'test', advertiserstate= 'test')]
+        mock_create_session.return_value = mock_session
+        result = get_advertiser_by_state("test")
+        assert len(result) == 1
 
 
-if __name__ == '__main__':
-    unittest.main()
+
