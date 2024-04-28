@@ -33,10 +33,7 @@ class TestPublisherService(unittest.TestCase):
 
     @patch('app.services.publisher_service.create_session')
     def test_create_publisher(self, mock_create_session):
-        mock_session = Mock()
-        mock_create_pb = Mock()
-        mock_session.add.return_value = mock_create_pb
-        mock_create_session.return_value = mock_session
+        mock_create_session.return_value = Mock()
 
         result = create_publisher(
             {'publishername': 'test', 'contactinfo': 'test', 'publisherstate': 'test', 'publisherdomain': 'test',
@@ -53,8 +50,7 @@ class TestPublisherService(unittest.TestCase):
 
     @patch('app.services.publisher_service.create_session')
     def test_update_publisher(self, mock_create_session):
-        mock_session = Mock()
-        mock_create_session.return_value = mock_session
+        mock_create_session.return_value = Mock()
 
         cp = create_publisher(
             {'publishername': 'test', 'contactinfo': 'test', 'publisherstate': 'test', 'publisherdomain': 'test',
@@ -67,10 +63,7 @@ class TestPublisherService(unittest.TestCase):
 
     @patch('app.services.publisher_service.create_session')
     def test_update_publisher_state(self, mock_create_session):
-        mock_session = Mock()
-        mock_get_pb = Mock()
-        mock_session.query().filter_by().first.return_value = mock_get_pb
-        mock_create_session.return_value = mock_session
+        mock_create_session.return_value = Mock()
 
         cp = create_publisher(
             {'publishername': 'test', 'contactinfo': 'test', 'publisherstate': 'CREATED', 'publisherdomain': 'test',
