@@ -44,7 +44,7 @@ const Ads = () => {
     const [adPriority, setAdPriority] = useState('');
     const [timeTargetting, setTimeTargetting] = useState([]);
     const [dayTargetting, setDayTargetting] = useState([]);
-    const [adUnitTargetting, setAdUnitTargetting] = useState('');
+    const [adUnitTargetting, setAdUnitTargetting] = useState([]);
     const [creativeid, setCreativeId] = useState('');
 
 
@@ -88,7 +88,7 @@ const Ads = () => {
   const handleSave = () => {
     // Process or save the input values here
     const data = {
-        ad_unit_targeted: adUnitTargetting,
+        ad_unit_targeted: [adUnitTargetting],
         adname: adName,
         adpriority: adPriority,
         adtype: adType,
@@ -97,15 +97,26 @@ const Ads = () => {
        creativeid: creativeid,
         startdate: startDate,
         enddate: endDate,
+        adstate: "ACTIVE",
         landingurl: landingUrl,
-        totalbudget: totalBudget,
-        dailybudget: dailyBudget,
+        budget:{
+            totalbudget: totalBudget,
+            dailybudget: dailyBudget,
+            currencycode: "USD",
+        },
         bidinfo:{
             bidtype: bidType,
+            bid: 1,
         },
         targetinginfo:{
-            timetargeting: timeTargetting,
-            daytargeting: dayTargetting,
+            timetargeting:{
+              type: "equal",
+              values: timeTargetting
+            },
+            daytargeting:{
+              type: "equal",
+              values: dayTargetting
+            }
         },
 
       }
@@ -133,7 +144,7 @@ const Ads = () => {
         setAdPriority('');
         setTimeTargetting([]);
         setDayTargetting([]);
-        setAdUnitTargetting('');
+        setAdUnitTargetting([]);
         setCreativeId('');
         fetchAds();
         handleClose();
@@ -213,21 +224,21 @@ const Ads = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {/* {publishers.map((publisher) => (
-              <TableRow key={publisher._id} >
-                <TableCell><Link to={`/inventory/${publisher.publisherid}`}>{publisher.publisherid}</Link></TableCell>
-                <TableCell>{publisher.publishername}</TableCell>
+            {ads.map((ad) => (
+              <TableRow key={ad._id} >
+                <TableCell><Link to={`/inventory/${ad.adid}`}>{ad.adid}</Link></TableCell>
+                <TableCell>{ad.adname}</TableCell>
                 <TableCell>
                   <Button
                     variant="contained"
-                    color={publisher.publisherstate === 'ACTIVE' ? 'secondary' : 'primary'}
-                    onClick={() => handleStateChange(publisher.publisherid, publisher.publisherstate)}
+                    color={ad.adstate === 'ACTIVE' ? 'secondary' : 'primary'}
+                    onClick={() => handleStateChange(ad.adid, ad.adstate)}
                   >
-                    {publisher.publisherstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                    {ad.adstate === 'ACTIVE' ? 'Deactivate' : 'Activate'}
                   </Button>
                 </TableCell>
               </TableRow>
-            ))} */}
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
