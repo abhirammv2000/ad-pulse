@@ -1,12 +1,7 @@
 from google.cloud import pubsub_v1
-import os
 from google.oauth2 import service_account
 import json
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from report import Report
 from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 from time import sleep
 
 project_id = "ad-pulse-team1"
