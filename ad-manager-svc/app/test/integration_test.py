@@ -45,8 +45,8 @@ class TestAPI(unittest.TestCase):
         time.sleep(5)
 
         query_params_ad_serve = {
-            'adunit_id': 'ADU20240411144856827',
-            'publisher_id': 'P20240404182901343'
+            'adunit_id': 'ADU20240429114506248',
+            'publisher_id': 'P20240429114437478'
         }
         ad_serve_response = requests.post(self.ad_server_host + '/adserve', params=query_params_ad_serve, json=ad_serve_payload)
 
