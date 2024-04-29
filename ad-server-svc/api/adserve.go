@@ -97,22 +97,22 @@ func (server *Server) adserve(ctx *gin.Context) {
 					activeAds = append(activeAds, adObj)
 				}
 			}
-
-			// fmt.Println("no of active ads: ", len(activeAds))
-			rankedAds = util.RankAds(activeAds)
-			fmt.Println("ranked ads: ", rankedAds)
-			bidParams := cache.BidParams{
-				RankedAds:   &rankedAds,
-				RequestBody: reqBody,
-			}
-			bids, err = server.getBids(bidParams)
-			if err != nil {
-				log.Println(err.Error())
-				ctx.JSON(http.StatusInternalServerError, errResponse(err))
-				return
-			}
 		}
 	}
+
+	rankedAds = util.RankAds(activeAds)
+	fmt.Println("no of active ads: ", len(activeAds))
+	bidParams := cache.BidParams{
+		RankedAds:   &rankedAds,
+		RequestBody: reqBody,
+	}
+	bids, err = server.getBids(bidParams)
+	if err != nil {
+		log.Println(err.Error())
+		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		return
+	}
+
 	adServeResponse := cache.AdServeResponse{
 		Id:    uuid.New().String(),
 		Bid:   *bids,
@@ -120,6 +120,6 @@ func (server *Server) adserve(ctx *gin.Context) {
 		Cur:   "USD",
 	}
 	// fmt.Println("activeAds: ", activeAds)
-	// fmt.Println("activeCampaigns: ", activeCampaigns)
+	fmt.Println("activeCampaigns: ", activeCampaigns)
 	ctx.JSON(http.StatusOK, adServeResponse)
 }

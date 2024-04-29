@@ -26,7 +26,7 @@ def get_cached_ads():
     ads_by_campaign = {}
 
     # Iterate over each key in the Redis database
-    for key in redis_client.scan_iter("C*"):
+    for key in redis_client.scan_iter("C2*"):
         campaign_id = key
 
         # Get all ad IDs and their corresponding data for the campaign
