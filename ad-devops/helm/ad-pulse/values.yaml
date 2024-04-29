@@ -2,6 +2,13 @@
 # Default values for adpulse.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+monitoring:
+  namespace:
+    name: monitoring
+    labels:
+      app.kubernetes.io/name: monitoring
+      app.kubernetes.io/instance: monitoring
+      app.kubernetes.io/managed-by: Helm
 adpulse:
   fullname: "adpulse"
   namespace:
@@ -24,7 +31,7 @@ adpulse:
     image:
       repository: adpulse18/ad-manager-svc
       pullPolicy: Always
-      tag: 1.0.20
+      tag: 1.0.22
     service:
       type: LoadBalancer
       port: 5000
