@@ -24,7 +24,6 @@ const CampaignsPage = () => {
 
   const [campaigns, setCampaigns] = useState([]);
   const [creatives, setCreatives] = useState([]);
-  const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [openCreatives, setOpenCreatives] = useState(false);
   const [openAddCampaignDialog, setOpenAddCampaignDialog] = useState(false);
 
@@ -60,8 +59,7 @@ const CampaignsPage = () => {
     fetchCampaigns();
   }, [AdvId]);
 
-  const handleViewCreatives = (campaignId) => {
-    setSelectedCampaign(campaignId);
+  const handleViewCreatives = () => {
     fetchCreatives();
     setOpenCreatives(true);
   };
@@ -128,7 +126,7 @@ const CampaignsPage = () => {
       <Button 
         variant="contained" 
         onClick={() => handleViewCreatives()}
-        style={{ marginLeft: 900, marginTop:"40px", right: 0 }}>
+        style={{ marginLeft: 800, marginTop:"40px", right: 0 }}>
         View Creatives
       </Button>
 
@@ -191,7 +189,7 @@ const CampaignsPage = () => {
             <TextField style={{ margin: '10px 10px 10px 0'}}
             id="datePicker"
             label="Start Date"
-            type="date"
+            type="datetime-local"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             InputLabelProps={{
@@ -201,7 +199,7 @@ const CampaignsPage = () => {
             <TextField style={{margin: '10px 10px 10px 0'}}
             id="datePicker"
             label="End Date"
-            type="date"
+            type="datetime-local"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             InputLabelProps={{

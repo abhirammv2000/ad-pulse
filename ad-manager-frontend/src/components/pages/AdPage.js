@@ -26,30 +26,29 @@ const TableContainer = styled.div`
 `;
 
 
-const Ads = () => {
+const AdPage = () => {
 
   const baseUrl = process.env.REACT_APP_API_BASE_URL
   const { AdvId,CampId } = useParams();
 //   console.log("ad id",AdvId);
 //   console.log("camp id",CampId);
 
-    const [adName, setAdName] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [landingUrl, setLandingUrl] = useState('');
-    const [totalBudget, setTotalBudget] = useState('');
-    const [dailyBudget, setDailyBudget] = useState('');
-    const [bidType, setBidType] = useState('');
-    const [adType, setAdType] = useState('');
-    const [adPriority, setAdPriority] = useState('');
-    const [timeTargetting, setTimeTargetting] = useState([]);
-    const [dayTargetting, setDayTargetting] = useState([]);
-    const [adUnitTargetting, setAdUnitTargetting] = useState([]);
-    const [creativeid, setCreativeId] = useState('');
-
-
-    const [adUnits, setAdUnits] = useState([]);
-    const [creativeList, setCreativeList] = useState([]);
+  const [adName, setAdName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [landingUrl, setLandingUrl] = useState('');
+  const [totalBudget, setTotalBudget] = useState('');
+  const [dailyBudget, setDailyBudget] = useState('');
+  const [bidType, setBidType] = useState('');
+  const [adType, setAdType] = useState('');
+  const [adPriority, setAdPriority] = useState('');
+  const [timeTargetting, setTimeTargetting] = useState([]);
+  const [dayTargetting, setDayTargetting] = useState([]);
+  const [adUnitTargetting, setAdUnitTargetting] = useState([]);
+  const [creativeid, setCreativeId] = useState('');
+  const [adUnits, setAdUnits] = useState([]);
+  const [creativeList, setCreativeList] = useState([]);
+  const [bid, setBid] = useState(0);
 
 
   const [open, setOpen] = useState(false);
@@ -64,29 +63,7 @@ const Ads = () => {
   };
 
 
-
-  // adId varchar PRIMARY KEY,
-//   adName varchar,
-//   campaignId varchar,
-//   advertiserId varchar,
-//   creativeId varchar, call api to get creative id
-//   startDate timestamp,
-//   endDate timestamp,
-//   landingUrl varchar,
-//   budget jsonb,
-//   frequencyCaps sonb,
-//   bidInfo jsonb, CPM,CPC,CPD
-//   adType varchar, gaur, non-gaur, promo
-//   adPriority int,
-//   targetingInfo jsonb, drop down [1-14], [1-7]
-//   createdAt timestamp,
-//   updatedAt timestamp,
-//   createdBy varchar,
-//   updatedBy varchar,
-//   adState varchar
-
   const handleSave = () => {
-    // Process or save the input values here
     const data = {
         ad_unit_targeted: [adUnitTargetting],
         adname: adName,
@@ -106,33 +83,31 @@ const Ads = () => {
         },
         bidinfo:{
             bidtype: bidType,
-            bid: 1,
-        },
-        targetinginfo:{
-            timetargeting:{
-              type: "equal",
-              values: timeTargetting
-            },
-            daytargeting:{
-              type: "equal",
-              values: dayTargetting
-            }
-        },
-
+            bid: bid,
+        }
       }
+
+      if (timeTargetting.length > 0 || dayTargetting.length > 0) {
+        data.targetinginfo = {};
+    
+        if (timeTargetting.length > 0) {
+            data.targetinginfo.timetargeting = {
+                type: "equal",
+                values: timeTargetting,
+            };
+        }
+    
+        if (dayTargetting.length > 0) {
+            data.targetinginfo.daytargeting = {
+                type: "equal",
+                values: dayTargetting,
+            };
+        }
+    }
     
     axios.post(`${baseUrl}/ad`, data)
       .then(response => {
         console.log('Data sent successfully:', response.data);
-        // Reset input fields
-        // setPublisherName('');
-        // setContactEmail('');
-        // setContactPhone('');
-        // setPublisherDomain('');
-        // setPreferenceLanguage('English');
-        // setPreferenceTimezone('UTC');
-        // fetchAds();
-        // handleClose();
         setAdName('');
         setStartDate('');
         setEndDate('');
@@ -140,6 +115,7 @@ const Ads = () => {
         setTotalBudget('');
         setDailyBudget('');
         setBidType('');
+        setBid(0);
         setAdType('');
         setAdPriority('');
         setTimeTargetting([]);
@@ -156,7 +132,7 @@ const Ads = () => {
   };
 
   const fetchAds = () => {
-    axios.get(`${baseUrl}/ad`)
+    axios.get(`${baseUrl}/ad/advertiser/${AdvId}/campaign/${CampId}`)
       .then(response => {
         setAds(response.data);
       })
@@ -211,7 +187,7 @@ const Ads = () => {
         <Button 
         variant="contained" 
         onClick={handleClickOpen}
-        style={{ marginLeft: 1000, marginTop:"40px", right: 0 }}>
+        style={{ marginLeft: 900, marginTop:"40px", right: 0 }}>
         Add new Ad
       </Button>
       <TableContainer>
@@ -267,7 +243,7 @@ const Ads = () => {
             <TextField style={{ margin: '10px 10px 10px 0'}}
             id="datePicker"
             label="Start Date"
-            type="date"
+            type="datetime-local"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             InputLabelProps={{
@@ -277,7 +253,7 @@ const Ads = () => {
             <TextField style={{margin: '10px 10px 10px 0'}}
             id="datePicker"
             label="End Date"
-            type="date"
+            type="datetime-local"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             InputLabelProps={{
@@ -300,8 +276,8 @@ const Ads = () => {
                     onChange={(e) => setAdType(e.target.value)}
                 >
                     <MenuItem value="GUARANTEED">Guaranteed</MenuItem>
-                    <MenuItem value="NON_GUARANTEE">Non-Guaranteed</MenuItem>
-                    <MenuItem value="PROMO">Promo</MenuItem>
+                    <MenuItem value="NON_GUARANTEED">Non-Guaranteed</MenuItem>
+                    <MenuItem value="PROMOTIONAL">Promotional</MenuItem>
                 </Select>
             </FormControl>
             
@@ -320,6 +296,13 @@ const Ads = () => {
             </FormControl>
             <TextField
                 margin="dense"
+                label="Bid"
+                fullWidth
+                value={bid}
+                onChange={(e) => setBid(e.target.value)}
+            />
+            <TextField
+                margin="dense"
                 label="Total Budget"
                 fullWidth
                 value={totalBudget}
@@ -333,10 +316,10 @@ const Ads = () => {
                 onChange={(e) => setDailyBudget(e.target.value)}
             />
             <FormControl fullWidth>
-                <InputLabel id="ad-unit-targeted-label">Ad Unit Targeted</InputLabel>
+                <InputLabel id="creative">Creative</InputLabel>
                 <Select
-                    labelId="ad-unit-targeted-label"
-                    id="ad-unit-targeted-select"
+                    labelId="creative"
+                    id="creative"
                     margin="dense"
                     value={creativeid}
                     onChange={(e) => setCreativeId(e.target.value)}
@@ -348,8 +331,6 @@ const Ads = () => {
                     ))}
                 </Select>
             </FormControl>
-            
-            
             <TextField
                 margin="dense"
                 label="Landing URL"
@@ -367,7 +348,7 @@ const Ads = () => {
                     onChange={(e) => setAdUnitTargetting(e.target.value)}
                 >
                     {adUnits.map((unit) => (
-                    <MenuItem key={unit} value={unit.adunitname}>
+                    <MenuItem key={unit} value={unit.adunitid}>
                         {unit.adunitname}
                     </MenuItem>
                     ))}
@@ -420,4 +401,4 @@ const Ads = () => {
     );
   };
   
-  export default Ads; 
+  export default AdPage; 
