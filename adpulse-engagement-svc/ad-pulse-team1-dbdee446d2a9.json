@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "ad-pulse-team1",
+  "private_key_id": "dbdee446d2a989a9320108369f344f2a2a146e42",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCtjs3J8Ti2GmfP\nNIaHug5GZOOHIKk/1zJ3nzuUI84sNq3tS20njsfgpIAp7F9UbATPEx/XkZcuEkvY\nvN79HyYlXvg5p7fLsoqUkY5GZ0wTOcDXTiSVhqQlhJ4Se98eTLO7rUreP2TJBSDo\nHMu0+IRh/RhFFcPRZJIAoxE50VXO6n8zwrUHaMxaNiBA/eJ06/jWfjBAE1D7dU1f\ncBfF68mk+7qATql3WbO7hlJaRGJyK0z1AmQGaBZKr2gQ1SDgQzwxX2D1G+Xkf517\nA5tVtYiUz6RH5+BXoWk0aKK65I3dde0Aod9LtwRYbcQ/EIhV3gJzxi+DKsuKDHHp\nyolHdbnDAgMBAAECggEAPYgql5UJGS7lbQXfSFGDbBuquyauOq8N+nEey1eiafR8\n12ttaJ/rZ06LDdH6vlCJp+zM1j2Mzs23zECyAiW//XHdKXu34uUK0r+EJJvM0egg\n4XSX7ddNbOvGqyD1qqVg94Hp0D/DeK1zzDchVajiLmdv6lZcFWnFhapKmigIdxIA\nzZ1u612P/ZmmdyBpZ1fhUHaaefaa076hCckSMuz+Ns6hOtbE4CsYoSUKaKU0n+gG\nnA7n6In6fMdqo0essinQNlKQ1IRVNnGNWc1AB5BQjTVt2jAhXFHO5vhlZiAQt7Rf\nS70LmdOQn17HLPJsWBUxmDaUxvVyyvjDmcR2fngYMQKBgQDUMMFWj56/PJdiZ1tw\n2MRQBLSvOQcXcbH1UMSdmH1kPmjzlP4bE2PAR09NgSkKKt1Vr6K5l3+x7o2Mh1+Y\n0m7bmdENjujN5iFu2nip/k/y7Uu2OK1wAdV02kMfqRz0quyIS2JIuPA3i/olkxIm\nKmaS3pcm6LuasbQADJG6jEnmSwKBgQDRZCLeUkd2r+LacaY6ZCMRm0hdRLEZLMGb\nBPCafi3Uc6+y0US55pPqkidx0XQigphztK50cNkhyur76Sgka9m0sJoc+yjF4UW2\nt0FEpkUXdgX5GoWTF28J1uMxAK+UyvTwUGi/RlUzbkQ8q8caiX+BJtlTZccJ+C5U\nBZzYyouvaQKBgAD9oUl4LjOSYtqQxPqH6JK/EuDmkUPowf31PJXHyn4XVIIepfkW\nZBbXvmUMP1bO0G2//jCDppL8HCkV0Lpz8RSRaUp46llbw7gyyPFyQIlP1lSpexXU\nzFxZUIrrTTlPOv9/6puQUX7Q5oAaabFH7WauJ2KFH6sfPUnqxRtr4ER1AoGBAJWd\no3yP9hhMXSARDOG0I4q1FePu7Uw7uqr1wKXjewPPFcAD38OlihOWEzE0pHL0NdKX\nTABPkhafU4BkfRZpKcn+VmBW5i9eY93G25Ad7khxQJtZ5A/SMrkpHnUpNExxKMt9\n6RqjOsXhCEkBxOalUMIL7EW2952cBB5tVEFjmKPhAoGBANHCcGJydHPiU+i1h4WP\nf75tbtWUI+pcBc1YZfmKGG7jNGpvI80wru5h8urMl4/TevDXg1mX6HBUwmRDgrBS\nmHsUYbdf87AzNPim+UcpdQ6O/yojqRC/oKitrDoWWzon6RgUi4EowcSR9ZzOenM8\nZADF4b/FIcp8SlWkM2EqeMms\n-----END PRIVATE KEY-----\n",
+  "client_email": "pubsub-admin@ad-pulse-team1.iam.gserviceaccount.com",
+  "client_id": "101116842694341545457",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/pubsub-admin%40ad-pulse-team1.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

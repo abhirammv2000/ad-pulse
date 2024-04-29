@@ -26,4 +26,7 @@ def create_app():
     from app.routes.campaign_routes import campaign_blueprint
     app.register_blueprint(campaign_blueprint)
 
+    from app.routes.reporting_routes import reporting_blueprint
+    app.register_blueprint(reporting_blueprint)
+
     return app

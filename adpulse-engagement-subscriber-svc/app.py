@@ -1,12 +1,7 @@
 from google.cloud import pubsub_v1
-import os
 from google.oauth2 import service_account
 import json
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from report import Report
 from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 from time import sleep
 
 project_id = "ad-pulse-team1"
@@ -14,7 +9,7 @@ subscription_id_clk = "click-service-topic-sub"
 subscription_id_render = "csc-service-topic-sub"
 
 # Set the path to your service account key file (outside the loop)
-key_path = "/Users/nihalsrinivasu/Downloads/ad-pulse-team1-dbdee446d2a9.json"
+key_path = "./ad-pulse-team1-dbdee446d2a9.json"
 
 # Create credentials object from the service account key file (once)
 credentials = service_account.Credentials.from_service_account_file(key_path)
@@ -64,7 +59,7 @@ def callbackClk(message):
     msg = message.data.decode()
     try:
         json_data = json.loads(msg)
-        update_db(json_data['adId'], "click")
+        update_db(json_data['adid'], "click")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
     message.ack()
@@ -74,7 +69,7 @@ def callbackCsc(message):
     msg = message.data.decode()
     try:
         json_data = json.loads(msg)
-        update_db(json_data['adId'], "render")
+        update_db(json_data['adid'], "render")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
     message.ack()

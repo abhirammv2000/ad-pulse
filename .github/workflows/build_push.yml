@@ -122,6 +122,7 @@ jobs:
             yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+            yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml 
 
         - name: Commit changes
           run: |
@@ -134,6 +135,9 @@ jobs:
             else
               echo "No changes detected."
             fi
+
+        - name: sleeping 30 seconds
+          run: sleep 30
             
 
     deploy:
@@ -173,4 +177,4 @@ jobs:
   
       - name: Upgrade Helm chart
         run: |
-          helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000"
+          helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"

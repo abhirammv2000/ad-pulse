@@ -23,6 +23,10 @@ spec:
           env:
             - name: AD_MANAGER_ADDRESS
               value: {{ .Values.ad_manager_url }}
+            - name: RENDER_URL
+              value: {{ .Values.ad_engagement_svc_rndr}}
+            - name: CLICK_URL
+              value: {{ .Values.ad_engagement_svc_clk }}
           ports:
             - name: http
               containerPort: {{ .Values.adpulse.ad_server_svc.service.port }}
