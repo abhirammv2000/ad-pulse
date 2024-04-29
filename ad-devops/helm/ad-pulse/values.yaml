@@ -24,7 +24,7 @@ adpulse:
     image:
       repository: adpulse18/ad-manager-svc
       pullPolicy: Always
-      tag: 1.0.17
+      tag: 1.0.20
     service:
       type: LoadBalancer
       port: 5000
@@ -43,7 +43,7 @@ adpulse:
     image:
       repository: adpulse18/ad-manager-frontend
       pullPolicy: Always
-      tag: 1.0.3
+      tag: 1.0.4
     service:
       type: LoadBalancer
       port: 3000
@@ -62,7 +62,7 @@ adpulse:
     image:
       repository: adpulse18/ad-server-svc
       pullPolicy: Always
-      tag: 1.0.7
+      tag: 1.0.9
     service:
       type: LoadBalancer
       port: 8080
@@ -81,11 +81,30 @@ adpulse:
     image:
       repository: adpulse18/adpulse-engagement-svc
       pullPolicy: Always
-      tag: 1.0.5
+      tag: 1.0.9
     service:
       type: LoadBalancer
       port: 8081
       targetPort: 8081
+  adpulse_engagement_subscriber_svc:
+    name: adpulse-engagement-subscriber-svc
+    labels:
+      app.kubernetes.io/name: adpulse-engagement-subscriber-svc
+      app.kubernetes.io/instance: adpulse
+      app.kubernetes.io/managed-by: Helm
+    replicaCount: 1
+    selectorLabels:
+      app.kubernetes.io/name: adpulse-engagement-subscriber-svc
+      app.kubernetes.io/instance: adpulse
+    serviceAccountName: "adpulse-engagement-subscriber-svc-service-account"
+    image:
+      repository: adpulse18/adpulse-engagement-subscriber-svc
+      pullPolicy: Always
+      tag: "0.0.4"
+    service:
+      type: LoadBalancer
+      port: 5000
+      targetPort: 5000
 hpa:
   minReplicas: 1
   maxReplicas: 100
