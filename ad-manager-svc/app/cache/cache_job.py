@@ -41,7 +41,7 @@ def fetch_and_cache_active_ads():
 
         session = create_session()
 
-        keys_to_delete = redis_client.keys('C2*')
+        keys_to_delete = redis_client.keys('C*')
 
         for key in keys_to_delete:
             redis_client.delete(key)

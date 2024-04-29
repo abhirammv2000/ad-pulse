@@ -43,10 +43,13 @@ const AdvertiserPage = (props) => {
   const [contactPhone, setContactPhone] = useState('');
   const [advertiserType, setAdvertiserType] = useState('');
   // Will delete after login page
-  const createdBy = 'Admin';
-  const updatedBy = 'Admin';
+  const [createdBy, setCreatedBy] = useState('Admin');
+  const [createdAt, setCreatedAt] = useState('2022-03-18T15:30:00');
+  const [updatedBy, setUpdatedBy] = useState('Admin');
+  const [updatedAt, setUpdatedAt] = useState('2022-03-18T15:30:00');
 
   const [advertisers, setAdvertisers] = useState([]);
+  const [selectedAdvertiser, setSelectedAdvertiser] = useState({});
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -54,6 +57,11 @@ const AdvertiserPage = (props) => {
 
   const handleClose = () => {
     setOpen(false);
+  };
+
+  const handleAdvertiserClick = (advertiser) => {
+    setSelectedAdvertiser(advertiser);
+    setOpen(true);
   };
 
   const handleSave = () => {
@@ -70,7 +78,9 @@ const AdvertiserPage = (props) => {
         },
         advertiseryype: advertiserType,
         createdby: createdBy,
-        updatedby: updatedBy
+        updatedby: updatedBy,
+        createdat: createdAt,
+        updatedat: updatedAt,
         
     };
     axios.post(`${baseUrl}/advertiser`, data)
@@ -126,7 +136,7 @@ const AdvertiserPage = (props) => {
       <Button 
         variant="contained" 
         onClick={handleClickOpen}
-        style={{ marginLeft: 900, marginTop:"40px", right: 0 }}>
+        style={{ marginLeft: 600, marginTop:"40px", right: 0 }}>
         Add new Advertiser
       </Button>
       <TableContainer>

@@ -63,11 +63,11 @@ const AdUnitPage = () => {
   
 
   return (
-    <div style={{width: "100%", marginLeft: 0}}>
+    <div>
       <Button 
       variant="contained" 
       onClick={() => setOpenDialog(true)}
-      style={{ marginLeft: 900, marginTop:"40px", right: 0 }}>Add New Ad Unit</Button>
+      style={{ marginLeft: 600, marginTop:"40px", right: 0 }}>Add New Ad Unit</Button>
       <Table>
         <TableHead>
           <TableRow>
