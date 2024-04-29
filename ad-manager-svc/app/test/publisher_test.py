@@ -28,6 +28,7 @@ class TestPublisherService(unittest.TestCase):
         mock_create_session.return_value = mock_session
 
         result = get_publisher_by_id('P123')
+        # print("!!!@@@###", result)
         assert result['publisherid'] == 'P123'
 
     @patch('app.services.publisher_service.create_session')
@@ -42,6 +43,7 @@ class TestPublisherService(unittest.TestCase):
         st = result['publisherstate']
         ua = result['updatedat']
         assert result['publishername'] == 'test'
+        # print(result)
         assert result == {'publisherid': id, 'publishername': 'test', 'contactinfo': 'test', 'publisherstate': st,
                           'publisherdomain': 'test', 'createdby': 'test', 'updatedby': 'test', 'preference': 'test',
                           'createdat': ca, 'updatedat': ua}
@@ -67,6 +69,7 @@ class TestPublisherService(unittest.TestCase):
             {'publishername': 'test', 'contactinfo': 'test', 'publisherstate': 'CREATED', 'publisherdomain': 'test',
              'createdby': 'test', 'updatedby': 'test', 'preference': 'test'})
         id = cp['publisherid']
+
         result = update_publisher_state(id, 'ACTIVE')
         pb = get_publisher_by_id(id)
         assert result == True
