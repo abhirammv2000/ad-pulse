@@ -1,0 +1,11 @@
+# Default values for monitoring.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+monitoring:
+  namespace:
+    name: monitoring
+    labels:
+      app.kubernetes.io/name: monitoring
+      app.kubernetes.io/instance: monitoring
+      app.kubernetes.io/managed-by: Helm
