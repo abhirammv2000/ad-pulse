@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-refresh-cronjob 
+  namespace: {{ .Values.adpulse.namespace.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{ .Values.adpulse.ad_manager_frontend.selectorLabels | toYaml | nindent 6}}
+  template:
+    metadata:
+      labels:
+        {{ .Values.adpulse.ad_manager_frontend.selectorLabels | toYaml | nindent 8}}
+    spec:
+      containers:
+      - name: "ad-refresh-cache-svc"
+        image: "ad-refresh-cache-svc:0.0.1"
+        command: ["bash", "-c"]
+        args: ["while true; do ./refersh-cache.sh; sleep 15; done"]
+
+        env:
+        - name: AD_MANGER_URL
+          value: {{ .Values.ad_manager_url }}
