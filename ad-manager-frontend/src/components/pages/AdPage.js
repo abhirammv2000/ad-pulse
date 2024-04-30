@@ -137,7 +137,7 @@ const AdPage = () => {
         setAds(response.data);
       })
       .catch(error => {
-        console.error('Error fetching publishers:', error);
+        console.error('Error fetching ads:', error);
       });
   };
 
@@ -167,9 +167,9 @@ const AdPage = () => {
     fetchCreativeList();
   }, []);
 
-  const handleStateChange = (publisherId, currentState) => {
+  const handleStateChange = (adId, currentState) => {
     const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    axios.patch(`${baseUrl}/ad?ad_id=${publisherId}&state=${nextState}`)
+    axios.patch(`${baseUrl}/ad?ad_id=${adId}&state=${nextState}`)
       .then(response => {
         console.log('State changed successfully:', response.data);
         fetchAds();

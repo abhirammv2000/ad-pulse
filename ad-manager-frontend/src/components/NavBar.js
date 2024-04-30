@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { List, ListItem, ListItemText, IconButton } from '@mui/material';
 import styled from '@emotion/styled';
-import { Storage as StorageIcon, Assessment as AssessmentIcon, Home as HomeIcon } from '@mui/icons-material';
+import { Storage as StorageIcon, Assessment as AssessmentIcon, Home as HomeIcon, TrendingUp as TrendingUpIcon } from '@mui/icons-material';
 
 const ColorDiv = styled.div`
   background-color: cornflowerblue;
@@ -47,6 +47,10 @@ const NavBar = () => {
         <ListItem button component={Link} to="/demand">
           <AssessmentIcon style={{ color: 'white' }} />
           <ListItemText primary="Demand" />
+        </ListItem>
+        <ListItem button component={Link} to="/report">
+          <TrendingUpIcon style={{ color: 'white' }} />
+          <ListItemText primary="Reports" />
         </ListItem>
       </StyledList>
     </NavBarContainer>
