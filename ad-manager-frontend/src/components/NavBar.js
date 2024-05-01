@@ -35,8 +35,8 @@ const NavBar = () => {
   return (
     <NavBarContainer>
       <ColorDiv>
-        <IconButton component={Link} to="/" style={{ color: 'white' }}>
-          <HomeIcon disablePadding/>
+        <IconButton component={Link} to="/" style={{ color: 'white', left: 0 }}>
+          <HomeIcon/>
         </IconButton>
       </ColorDiv>
       <StyledList>
