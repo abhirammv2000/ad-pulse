@@ -11,7 +11,7 @@ env:
     ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
-    unit-tets:
+    unit-tests:
       runs-on: ubuntu-latest
       steps:
         - name: Checkout code
@@ -24,11 +24,13 @@ jobs:
           run: |
             echo "Running unit tests"
             cd ad-manager-svc
-            python3 -m unittest discover -s app/test -p "*_test.py"    
+            pip install -r requirements.txt
+            python3 -m unittest discover -s app/test -p "*_test.py"
             echo "Unit tests passed"
 
     check-changes-and-build:
       runs-on: ubuntu-latest
+      needs: unit-tests
       steps:
         - name: Checkout code
           uses: actions/checkout@v2
