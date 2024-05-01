@@ -1,24 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cache-refresh-cronjob 
+  name: cache-refresh-deployment
   namespace: {{ .Values.adpulse.namespace.name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{ .Values.adpulse.ad_manager_frontend.selectorLabels | toYaml | nindent 6}}
+      app: cache-refresh
   template:
     metadata:
       labels:
-        {{ .Values.adpulse.ad_manager_frontend.selectorLabels | toYaml | nindent 8}}
+        app: cache-refresh
     spec:
       containers:
-      - name: "ad-refresh-cache-svc"
-        image: "ad-refresh-cache-svc:0.0.1"
-        command: ["bash", "-c"]
-        args: ["while true; do ./refersh-cache.sh; sleep 15; done"]
-
+      - name: ad-refresh-cache-svc
+        image: adpulse18/ad-refresh-cache-svc:0.0.2   # Replace with your Docker image
         env:
-        - name: AD_MANGER_URL
-          value: {{ .Values.ad_manager_url }}
+          - name: AD_MANAGER_URL
+            value: {{ .Values.ad_manager_url }}
+      restartPolicy: Always
