@@ -16,6 +16,8 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
   const [creativeHeight, setCreativeHeight] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
 
+  const baseUrl = process.env.REACT_APP_API_BASE_URL;
+
   const handleAddDialogOpen = () => {
     setAddDialogOpen(true);
   };
@@ -39,7 +41,7 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
       formData.append('cacheControl', '3600');
       formData.append('image', selectedImage);
 
-      const uploadResponse = await axios.post(`http://localhost:5000/creative/upload?filename=${creativeName}`, formData);
+      const uploadResponse = await axios.post(`${baseUrl}/creative/upload?filename=${creativeName}`, formData);
 
       const imageUrl = uploadResponse.data.image_url;
 
@@ -62,7 +64,7 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
         updatedby: 'Admin'
       };
 
-      await axios.post('http://localhost:5000/creative', data);
+      await axios.post(`${baseUrl}/creative`, data);
 
       refreshCreatives();
       // Close the add dialog
