@@ -11,6 +11,22 @@ env:
     ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
+    unit-tets:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+          with:
+            ref: stage
+            fetch-depth: 5
+
+        - name: Run unit tests
+          run: |
+            echo "Running unit tests"
+            cd ad-manager-svc
+            python3 -m unittest discover -s app/test -p "*_test.py"    
+            echo "Unit tests passed"
+
     check-changes-and-build:
       runs-on: ubuntu-latest
       steps:
@@ -180,3 +196,24 @@ jobs:
       - name: Upgrade Helm chart
         run: |
           helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"
+
+
+    integration-test:
+      needs: deploy
+      runs-on: ubuntu-latest
+      steps:
+        - name: sleep 2 minutes
+          run: sleep 120
+
+        - name: Checkout code
+          uses: actions/checkout@v2
+          with:
+            ref: stage
+            fetch-depth: 5
+
+        - name: Run integration tests
+          run: |
+            echo "Running integration tests"
+            export AD_MANAGER_HOST="http://34.67.120.91:5000"
+            export AD_SERVER_HOST="http://34.31.128.115:8080"
+            echo "Integration tests passed"
