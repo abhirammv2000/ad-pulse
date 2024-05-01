@@ -47,4 +47,4 @@ jobs:
     
         - name: Upgrade Helm chart
           run: |
-            helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.71.13.141:8080" --set ad_manager_url="http://35.232.155.180:5000" --set ad_engagement_svc_clk="http://34.172.103.43:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.172.103.43:8081/engagement/csc"
+            helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.66.199.64:8080" --set ad_manager_url="http://34.121.57.232:5000" --set ad_engagement_svc_clk="http://34.31.189.11:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.31.189.11:8081/engagement/csc"
