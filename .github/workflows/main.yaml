@@ -11,48 +11,7 @@ env:
     ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
-    update-helm-chart:
-        runs-on: ubuntu-latest
-        steps:
-          - name: Checkout code
-            uses: actions/checkout@v2
-            with:
-              ref: stage
-              fetch-depth: 5
-  
-          - name: install yq
-            run: |
-              wget https://github.com/mikefarah/yq/releases/download/v4.12.0/yq_linux_amd64.tar.gz -O /tmp/yq.tar.gz
-              tar xvf /tmp/yq.tar.gz -C /tmp/
-              mv /tmp/yq_linux_amd64 /usr/local/bin/yq
-              chmod +x /usr/local/bin/yq
-  
-          - name: Update Helm chart
-            run: |
-              yq eval '.adpulse.ad_manager_svc.image.tag = "'"$(cat ad-manager-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-              yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-              yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-              yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-              yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml 
-  
-          - name: Commit changes
-            run: |
-              if [ -n "$(git status --porcelain)" ]; then
-                git config --global user.name "GitHub Actions"
-                git config --global user.email "actions@github.com"
-                git add .
-                git commit -m "Updating helm chart values.yaml"
-                git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
-              else
-                echo "No changes detected."
-              fi
-  
-          - name: sleeping 30 seconds
-            run: sleep 30
-              
-  
     deploy:
-        needs: update-helm-chart
         runs-on: ubuntu-latest
         
         steps:
