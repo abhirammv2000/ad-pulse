@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-refresh-deployment
+  namespace: {{ .Values.adpulse.namespace.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-refresh
+  template:
+    metadata:
+      labels:
+        app: cache-refresh
+    spec:
+      containers:
+      - name: ad-refresh-cache-svc
+        image: adpulse18/ad-refresh-cache-svc:0.0.2   # Replace with your Docker image
+        env:
+          - name: AD_MANAGER_URL
+            value: {{ .Values.ad_manager_url }}
+      restartPolicy: Always

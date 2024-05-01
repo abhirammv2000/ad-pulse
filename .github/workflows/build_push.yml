@@ -98,6 +98,8 @@ jobs:
             else
               echo "No changes detected"
             fi
+        - name: sleeping 30 seconds
+          run: sleep 30
 
     update-helm-chart:
       needs: check-changes-and-build
