@@ -1,11 +1,15 @@
 # Use a base image
-FROM alpine:latest
+FROM python:3.8.2
 
-# Copy the bash script to the container
-COPY refesh-cache.sh /refesh-cache.sh
+# Copy the Python file to the container
+COPY refresh-cache.py /refresh-cache.py
+
+# Install requirements
+COPY requirements.txt /requirements.txt
+RUN pip install -r /requirements.txt
 
 # Set the working directory
 WORKDIR /
 
-# Make the script executable
-RUN chmod +x /refesh-cache.sh
+# Run the Python file
+CMD ["python", "refresh-cache.py"]
