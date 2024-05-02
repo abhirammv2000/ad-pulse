@@ -12,8 +12,8 @@ import axios from 'axios';
 const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreatives }) => {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [creativeName, setCreativeName] = useState('');
-  const [creativeWidth, setCreativeWidth] = useState('');
-  const [creativeHeight, setCreativeHeight] = useState('');
+  const [creativeWidth, setCreativeWidth] = useState(0);
+  const [creativeHeight, setCreativeHeight] = useState(0);
   const [selectedImage, setSelectedImage] = useState(null);
 
   const baseUrl = process.env.REACT_APP_API_BASE_URL;
@@ -25,8 +25,8 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
   const handleAddDialogClose = () => {
     setAddDialogOpen(false);
     setCreativeName('');
-    setCreativeWidth('');
-    setCreativeHeight('');
+    setCreativeWidth(0);
+    setCreativeHeight(0);
     setSelectedImage(null);
   };
 
@@ -107,16 +107,18 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
             margin="normal"
           />
           <TextField
+            type='number'
             label="Width"
             value={creativeWidth}
-            onChange={(e) => setCreativeWidth(e.target.value)}
+            onChange={(e) => setCreativeWidth(parseInt(e.target.value))}
             fullWidth
             margin="normal"
           />
           <TextField
+            type='number'
             label="Height"
             value={creativeHeight}
-            onChange={(e) => setCreativeHeight(e.target.value)}
+            onChange={(e) => setCreativeHeight(parseInt(e.target.value))}
             fullWidth
             margin="normal"
           />
