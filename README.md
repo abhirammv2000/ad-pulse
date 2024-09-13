@@ -1,5 +1,5 @@
 # Ad Pulse 👋
-Ad Pulse is a advertising platform.
+Ad Pulse is an advertising platform.
 
 # **Team Members:**
 1. Kushal Nagarajan
