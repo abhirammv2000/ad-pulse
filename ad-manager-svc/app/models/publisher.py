@@ -1,11 +1,11 @@
-from sqlalchemy import Column, String, Integer, JSON, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, String, JSON, DateTime
 
-Base = declarative_base()
+from app.models.base import Base
+
 
 class Publisher(Base):
     __tablename__ = 'publisher'
-    
+
     publisherid = Column(String, primary_key=True, nullable=False)
     publishername = Column(String)
     contactinfo = Column(JSON)

@@ -31,7 +31,7 @@ def get_advertiser_api(advertiser_id):
     advertiser = get_advertiser_by_id(advertiser_id)
     
     if advertiser:
-        return advertiser, 200
+        return jsonify(advertiser), 200
     else:
         return jsonify({'error': 'Advertiser not found'}), 404
     

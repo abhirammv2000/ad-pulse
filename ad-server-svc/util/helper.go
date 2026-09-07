@@ -2,122 +2,96 @@ package util
 
 import (
 	"adserver/cache"
-	"fmt"
 	"log"
 	"sort"
 	"time"
 )
 
-var dayNumber map[string]int = map[string]int{
-	"Sunday":    1,
-	"Monday":    2,
-	"Tuesday":   3,
-	"Wednesday": 4,
-	"Thursday":  5,
-	"Friday":    6,
-	"Saturday":  7,
+// timeLayout is the format the ad manager writes dates in.
+const timeLayout = "2006-01-02T15:04:05"
+
+// dayNumber maps Go weekday names onto the 1-based day numbers used in
+// targeting rules (Sunday = 1).
+var dayNumber = map[time.Weekday]int{
+	time.Sunday:    1,
+	time.Monday:    2,
+	time.Tuesday:   3,
+	time.Wednesday: 4,
+	time.Thursday:  5,
+	time.Friday:    6,
+	time.Saturday:  7,
 }
 
 func WithinDuration(startDate, endDate time.Time) bool {
-	currentTime := time.Now().UTC()
-	if startDate.Before(currentTime) && endDate.After(currentTime) {
-		return true
-	}
-	return false
+	now := time.Now().UTC()
+	return startDate.Before(now) && endDate.After(now)
 }
 
 func GetTime(strTime string) (time.Time, error) {
-	layout := "2006-01-02T15:04:05"
-	timeInTimeFormat, err := time.Parse(layout, strTime)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return timeInTimeFormat, nil
+	return time.Parse(timeLayout, strTime)
 }
 
+// AdActive reports whether now falls inside the ad's own flight dates.
 func AdActive(ad cache.Ad) bool {
 	startDate, err := GetTime(ad.StartDate)
 	if err != nil {
-		log.Println(err.Error())
+		log.Printf("ad %s has an unparseable start date: %v", ad.AdID, err)
 		return false
 	}
 	endDate, err := GetTime(ad.EndDate)
 	if err != nil {
-		log.Println(err.Error())
+		log.Printf("ad %s has an unparseable end date: %v", ad.AdID, err)
 		return false
 	}
-	if WithinDuration(startDate, endDate) {
+	return WithinDuration(startDate, endDate)
+}
+
+// adInTargetedAdUnit reports whether the ad may serve into this ad unit. An ad
+// with no ad-unit list is unrestricted.
+func adInTargetedAdUnit(ad cache.Ad, adParam cache.RequestParams) bool {
+	if len(ad.AdUnitTargeted) == 0 {
 		return true
 	}
-	return false
+	return contains(ad.AdUnitTargeted, adParam.AdUnitId)
 }
 
-func adInTargettedAdUnit(ad cache.Ad, adParam cache.RequestParams) bool {
-	adUnitFlag := false
-	for _, adUnit := range ad.AdUnitTargeted {
-		if adUnit == adParam.AdUnitId {
-			adUnitFlag = true
-			break
-		}
-	}
-	if ad.AdUnitTargeted == nil {
-		adUnitFlag = true
-	}
-	return adUnitFlag
-}
-
+// adInDayTargeting and adInTimeTargeting treat an absent or empty rule as
+// "no restriction", so an ad that targets only hours still serves on every day.
 func adInDayTargeting(ad cache.Ad) bool {
-	dayTargetingFlag := false
-	dayOfTheWeek := dayNumber[time.Now().Weekday().String()]
-	if ad.TargetingInfo == nil {
+	if ad.TargetingInfo == nil || len(ad.TargetingInfo.DayTargeting.Values) == 0 {
 		return true
 	}
-	fmt.Println("day of the week: ", dayOfTheWeek, ad.TargetingInfo.DayTargeting.Values)
-	for _, dayNumber := range ad.TargetingInfo.DayTargeting.Values {
-		if dayNumber == dayOfTheWeek {
-			dayTargetingFlag = true
-			break
-		}
-	}
-
-	return dayTargetingFlag
+	return contains(ad.TargetingInfo.DayTargeting.Values, dayNumber[time.Now().Weekday()])
 }
 
 func adInTimeTargeting(ad cache.Ad) bool {
-	timeTargetingFlag := false
-	hourOfTheDay := time.Now().Hour()
-	if ad.TargetingInfo == nil {
+	if ad.TargetingInfo == nil || len(ad.TargetingInfo.TimeTargeting.Values) == 0 {
 		return true
 	}
-	fmt.Println("hour of the day: ", hourOfTheDay, ad.TargetingInfo.TimeTargeting.Values)
-	for _, hour := range ad.TargetingInfo.TimeTargeting.Values {
-		if hour == hourOfTheDay {
-			timeTargetingFlag = true
-			break
-		}
-	}
-	return timeTargetingFlag
+	return contains(ad.TargetingInfo.TimeTargeting.Values, time.Now().Hour())
 }
 
-func IsAdAvailable(ad cache.Ad, adParam cache.RequestParams, adBody cache.RequestBody) (bool, error) {
-	if !AdActive(ad) {
-		return false, nil
-	}
-	if !adInTargettedAdUnit(ad, adParam) {
-		return false, nil
-	}
-	if !adInDayTargeting(ad) {
-		return false, nil
-	}
-	if !adInTimeTargeting(ad) {
-		return false, nil
-	}
-	return true, nil
+// IsAdAvailable reports whether the ad passes every targeting rule for this request.
+func IsAdAvailable(ad cache.Ad, adParam cache.RequestParams) bool {
+	return AdActive(ad) &&
+		adInTargetedAdUnit(ad, adParam) &&
+		adInDayTargeting(ad) &&
+		adInTimeTargeting(ad)
 }
 
+// RankAds orders candidates by ad priority, lowest number first.
 func RankAds(ads []cache.Ad) []cache.Ad {
-	sort.Slice(ads, func(i, j int) bool {
+	sort.SliceStable(ads, func(i, j int) bool {
 		return ads[i].AdPriority < ads[j].AdPriority
 	})
 	return ads
+}
+
+func contains[T comparable](values []T, target T) bool {
+	for _, v := range values {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }

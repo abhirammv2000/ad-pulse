@@ -8,8 +8,7 @@ ad_blueprint = Blueprint('ad', __name__)
 def get_all_ads_api():
     # Get all ads
     ads = get_all_ads()
-    print("ads")
-    return ads, 200
+    return jsonify(ads), 200
 
 @ad_blueprint.route('/ad', methods=['POST'])
 def create_ad_api():
@@ -29,7 +28,7 @@ def get_ad_by_id_api(ad_id):
     ad = get_ad_by_id(ad_id)
 
     if ad:
-        return ad, 200
+        return jsonify(ad), 200
     else:
         return jsonify({'error': 'Ad not found'}), 404
 
@@ -39,15 +38,13 @@ def get_ad_by_state_api(state):
     if state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     ads = get_ad_by_state(state)
-    return ads, 200
+    return jsonify(ads), 200
 
 @ad_blueprint.route('/ad', methods=['PATCH'])
 def update_ad_state_api():
     ad_id = request.args.get('ad_id')
     new_state = request.args.get('state')
-    print(new_state)
     if new_state not in States.__members__:
-        print(States.__members__)
         return jsonify({'error': 'Invalid state'}), 400
     if new_state == States.CREATED.value:
         return jsonify({'error': 'Invalid State Transition'}), 400
@@ -76,4 +73,4 @@ def update_ad_api():
 def get_ad_by_campaign_and_advertiser_api(advertiser_id, campaign_id):
     # Get the ad
     ads = get_ad_by_campaign_and_advertiser_id(advertiser_id, campaign_id)
-    return ads, 200
+    return jsonify(ads), 200

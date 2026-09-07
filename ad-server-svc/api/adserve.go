@@ -4,7 +4,6 @@ import (
 	"adserver/cache"
 	"adserver/util"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -12,114 +11,118 @@ import (
 	"github.com/google/uuid"
 )
 
+// adserve answers an ad request for one ad unit.
+//
+// It walks the cached campaigns, collects the ads that are eligible for this
+// request, ranks them, and asks the bidder to match them against the
+// impressions the caller offered.
 func (server *Server) adserve(ctx *gin.Context) {
 	var reqParams cache.RequestParams
 	if err := ctx.ShouldBindQuery(&reqParams); err != nil {
 		ctx.JSON(http.StatusBadRequest, errResponse(err))
 		return
 	}
-	// fmt.Println("reqParams: ", reqParams)
+
 	var reqBody cache.RequestBody
 	if err := ctx.ShouldBindJSON(&reqBody); err != nil {
 		ctx.JSON(http.StatusBadRequest, errResponse(err))
 		return
 	}
-	adUnitAdress := server.config.AdManagerAddress + "/adunit/" + "ad_unit_id/" + reqParams.AdUnitId
-	publisherAdress := server.config.AdManagerAddress + "/publisher/" + "publisherid/" + reqParams.PublisherId
 
-	resp, err := http.Get(publisherAdress)
+	if ok := server.entityExists(ctx, "/publisher/publisherid/"+reqParams.PublisherId, "publisher"); !ok {
+		return
+	}
+	if ok := server.entityExists(ctx, "/adunit/ad_unit_id/"+reqParams.AdUnitId, "ad unit"); !ok {
+		return
+	}
+
+	campaigns, err := server.store.Get("campaigns")
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errResponse(err))
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "publisher not found"})
-		return
-	}
-
-	resp, err = http.Get(adUnitAdress)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errResponse(err))
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "ad unit not found"})
-		return
-	}
-
-	campaignKey := "campaigns"
 	var campaignList []cache.Campaign
-	campaigns, err := server.store.Get(campaignKey)
-	if err != nil {
+	if err := json.Unmarshal([]byte(campaigns), &campaignList); err != nil {
 		ctx.JSON(http.StatusInternalServerError, errResponse(err))
 		return
 	}
-	json.Unmarshal([]byte(campaigns), &campaignList)
-	var activeCampaigns []cache.Campaign
+
+	// Collect eligible ads across every live campaign first, then rank and bid
+	// once. Ranking inside the loop would score each campaign against only a
+	// prefix of the candidates.
 	var activeAds []cache.Ad
-	var rankedAds []cache.Ad
-	var bids *[]cache.Bid
 	for _, campaign := range campaignList {
 		startDate, err := util.GetTime(campaign.StartDate)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, errResponse(err))
-			return
+			log.Printf("campaign %s has an unparseable start date: %v", campaign.CampaignID, err)
+			continue
 		}
 		endDate, err := util.GetTime(campaign.EndDate)
+		if err != nil {
+			log.Printf("campaign %s has an unparseable end date: %v", campaign.CampaignID, err)
+			continue
+		}
+		if !util.WithinDuration(startDate, endDate) {
+			continue
+		}
+
+		ads, err := server.store.HGetAll(campaign.CampaignID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, errResponse(err))
 			return
 		}
-		if util.WithinDuration(startDate, endDate) {
-			activeCampaigns = append(activeCampaigns, campaign)
-			hkey := campaign.CampaignID
-			ads, err := server.store.HGetAll(hkey)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, errResponse(err))
-				return
-			}
-			// fmt.Println("number of ads in campaign: ", len(ads))
-			for _, ad := range ads {
-				var adObj cache.Ad
-				json.Unmarshal([]byte(ad), &adObj)
-				// fmt.Println("checking ad: ", adObj.AdID)
-				adAvailable, err := util.IsAdAvailable(adObj, reqParams, reqBody)
-				if err != nil {
-					ctx.JSON(http.StatusInternalServerError, errResponse(err))
-					return
-				}
-				fmt.Println("can ad ", adObj.AdID, " be served: ", adAvailable)
-				if adAvailable {
-					activeAds = append(activeAds, adObj)
-				}
-			}
 
-			// fmt.Println("no of active ads: ", len(activeAds))
-			rankedAds = util.RankAds(activeAds)
-			fmt.Println("ranked ads: ", rankedAds)
-			bidParams := cache.BidParams{
-				RankedAds:   &rankedAds,
-				RequestBody: reqBody,
+		for _, ad := range ads {
+			var adObj cache.Ad
+			if err := json.Unmarshal([]byte(ad), &adObj); err != nil {
+				log.Printf("skipping malformed ad in campaign %s: %v", campaign.CampaignID, err)
+				continue
 			}
-			bids, err = server.getBids(bidParams)
-			if err != nil {
-				log.Println(err.Error())
-				ctx.JSON(http.StatusInternalServerError, errResponse(err))
-				return
+			if util.IsAdAvailable(adObj, reqParams) {
+				activeAds = append(activeAds, adObj)
 			}
 		}
 	}
-	adServeResponse := cache.AdServeResponse{
+
+	if len(activeAds) == 0 {
+		ctx.JSON(http.StatusNoContent, nil)
+		return
+	}
+
+	rankedAds := util.RankAds(activeAds)
+	bids, err := server.getBids(cache.BidParams{
+		RankedAds:   &rankedAds,
+		RequestBody: reqBody,
+		AdUnitId:    reqParams.AdUnitId,
+	})
+	if err != nil {
+		log.Printf("no bid for ad unit %s: %v", reqParams.AdUnitId, err)
+		ctx.JSON(http.StatusNoContent, nil)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, cache.AdServeResponse{
 		Id:    uuid.New().String(),
 		Bid:   *bids,
 		Bidid: uuid.New().String(),
 		Cur:   "USD",
+	})
+}
+
+// entityExists checks the ad manager for a publisher or ad unit, writing the
+// error response itself and reporting whether the caller should continue.
+func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
+	resp, err := http.Get(server.config.AdManagerAddress + path)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		return false
 	}
-	// fmt.Println("activeAds: ", activeAds)
-	// fmt.Println("activeCampaigns: ", activeCampaigns)
-	ctx.JSON(http.StatusOK, adServeResponse)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": label + " not found"})
+		return false
+	}
+	return true
 }

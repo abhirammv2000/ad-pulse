@@ -1,8 +1,8 @@
 from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from app.models.advertiser import Advertiser
 
-Base = declarative_base()
+from app.models.advertiser import Advertiser
+from app.models.base import Base
+
 
 class Creative(Base):
     __tablename__ = 'creative'
