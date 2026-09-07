@@ -39,7 +39,7 @@ def get_publisher_api(publisher_id):
     publisher = get_publisher_by_id(publisher_id)
     
     if publisher:
-        return publisher, 200
+        return jsonify(publisher), 200
     else:
         return jsonify({'error': 'Publisher not found'}), 404
     
@@ -48,7 +48,7 @@ def get_all_publishers_api():
     # Get all publishers
     publishers = get_all_publishers()
     
-    return publishers, 200
+    return jsonify(publishers), 200
 
 @publisher_blueprint.route('/publisher', methods=['PATCH'])
 def update_publisher_state_api():
@@ -68,4 +68,4 @@ def get_publisher_by_state_api(state):
     if state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     publishers = get_publisher_by_state(state)
-    return publishers, 200
+    return jsonify(publishers), 200

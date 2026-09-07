@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
+	"net"
 
 	"adserver/api"
 	"adserver/cache"
 	"adserver/util"
 
-	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -16,9 +16,9 @@ func main() {
 	if err != nil {
 		log.Fatal("cannot load configuration: ", err)
 	}
-	redisAddress := config.RedisHost + ":" + config.RedisPort
+
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddress,
+		Addr:     net.JoinHostPort(config.RedisHost, config.RedisPort),
 		Username: config.RedisUsername,
 		Password: config.RedisPassword,
 	})
@@ -27,11 +27,10 @@ func main() {
 
 	server, err := api.NewServer(config, store)
 	if err != nil {
-		log.Fatal("cannot create server")
+		log.Fatal("cannot create server: ", err)
 	}
 
-	err = server.Start(config.ServerAddress)
-	if err != nil {
-		log.Fatal("Cannot start server: ", err)
+	if err := server.Start(config.ServerAddress); err != nil {
+		log.Fatal("cannot start server: ", err)
 	}
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import CreativeCard from '../CreativeCard';
 import Table from '@mui/material/Table';
@@ -15,18 +15,18 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../config';
 
 const CampaignsPage = () => {
-  const baseUrl = process.env.REACT_APP_API_BASE_URL;
+  const baseUrl = API_BASE_URL;
   const { AdvId } = useParams();
 
   const [campaigns, setCampaigns] = useState([]);
   const [creatives, setCreatives] = useState([]);
-  const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [openCreatives, setOpenCreatives] = useState(false);
   const [openAddCampaignDialog, setOpenAddCampaignDialog] = useState(false);
 
-  const fetchCampaigns = () => {
+  const fetchCampaigns = useCallback(() => {
     axios.get(`${baseUrl}/campaign/advertiser/${AdvId}`)
       .then(response => {
         setCampaigns(response.data);
@@ -34,7 +34,7 @@ const CampaignsPage = () => {
       .catch(error => {
         console.error('Error fetching campaigns:', error);
       });
-  };
+  }, [baseUrl, AdvId]);
 
   const fetchCreatives = () => {
     axios.get(`${baseUrl}/creative/advertiser/${AdvId}`)
@@ -48,10 +48,9 @@ const CampaignsPage = () => {
 
   useEffect(() => {
     fetchCampaigns();
-  }, [AdvId]);
+  }, [fetchCampaigns]);
 
-  const handleViewCreatives = (campaignId) => {
-    setSelectedCampaign(campaignId);
+  const handleViewCreatives = () => {
     fetchCreatives();
     setOpenCreatives(true);
   };

@@ -142,23 +142,25 @@ type Bid struct {
 	Ext   Ext    `json:"ext"`
 }
 
+type CreativeAsset struct {
+	Type      string `json:"type"`
+	Required  bool   `json:"required"`
+	Height    int    `json:"height"`
+	Width     int    `json:"width"`
+	ImageURL  string `json:"imageURL"`
+	ImageType string `json:"imageType"`
+}
+
 type Creative struct {
-	Type         string `json:"type"`
-	Name         string `json:"name"`
-	State        string `json:"state"`
-	AdvertiserID string `json:"advertiserId"`
-	CreatedBy    string `json:"createdBy"`
-	UpdatedBy    string `json:"updatedBy"`
-	CreatedAt    string `json:"createdAt"`
-	UpdatedAt    string `json:"updatedAt"`
-	Assets       []struct {
-		Type      string `json:"type"`
-		Required  bool   `json:"required"`
-		Height    int    `json:"height"`
-		Width     int    `json:"width"`
-		ImageURL  string `json:"imageURL"`
-		ImageType string `json:"imageType"`
-	} `json:"assets"`
+	Type         string          `json:"type"`
+	Name         string          `json:"name"`
+	State        string          `json:"state"`
+	AdvertiserID string          `json:"advertiserId"`
+	CreatedBy    string          `json:"createdBy"`
+	UpdatedBy    string          `json:"updatedBy"`
+	CreatedAt    string          `json:"createdAt"`
+	UpdatedAt    string          `json:"updatedAt"`
+	Assets       []CreativeAsset `json:"assets"`
 }
 
 type IIDData struct {
@@ -180,4 +182,5 @@ type AdServeResponse struct {
 type BidParams struct {
 	RankedAds   *[]Ad       `json:"ranked_ads"`
 	RequestBody RequestBody `json:"request_body"`
+	AdUnitId    string      `json:"adunit_id"`
 }

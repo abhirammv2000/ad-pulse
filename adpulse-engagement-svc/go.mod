@@ -6,8 +6,6 @@ require (
 	cloud.google.com/go/pubsub v1.34.0
 	github.com/gin-contrib/cors v1.7.1
 	github.com/gin-gonic/gin v1.9.1
-	github.com/knadh/koanf/v2 v2.1.0
-	github.com/nedpals/supabase-go v0.4.0
 	google.golang.org/api v0.172.0
 )
 
