@@ -1,22 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cache-refresh-deployment
+  name: {{ .Values.adpulse.ad_refresh_cache_svc.name }}
   namespace: {{ .Values.adpulse.namespace.name }}
+  labels:
+    {{ .Values.adpulse.ad_refresh_cache_svc.labels | toYaml | nindent 4}}
 spec:
-  replicas: 1
+  replicas: {{ .Values.adpulse.ad_refresh_cache_svc.replicaCount }}
   selector:
     matchLabels:
-      app: cache-refresh
+      {{ .Values.adpulse.ad_refresh_cache_svc.selectorLabels | toYaml | nindent 6}}
   template:
     metadata:
       labels:
-        app: cache-refresh
+        {{ .Values.adpulse.ad_refresh_cache_svc.selectorLabels | toYaml | nindent 8}}
     spec:
       containers:
-      - name: ad-refresh-cache-svc
-        image: adpulse18/ad-refresh-cache-svc:0.0.2   # Replace with your Docker image
-        env:
-          - name: AD_MANAGER_URL
-            value: {{ .Values.ad_manager_url }}
+        - name: {{ .Values.adpulse.ad_refresh_cache_svc.name }}
+          image: "{{ .Values.adpulse.ad_refresh_cache_svc.image.repository }}:{{ .Values.adpulse.ad_refresh_cache_svc.image.tag }}"
+          imagePullPolicy: {{ .Values.adpulse.ad_refresh_cache_svc.image.pullPolicy }}
+          env:
+            - name: AD_MANAGER_URL
+              value: {{ .Values.ad_manager_url }}
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 25m
+            limits:
+              memory: 64Mi
+              cpu: 100m
       restartPolicy: Always

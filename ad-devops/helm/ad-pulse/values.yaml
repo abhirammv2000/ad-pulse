@@ -4,6 +4,19 @@
 # Declare variables to be passed into your templates.
 adpulse:
   fullname: "adpulse"
+  # Real credentials belong in a gitignored values-secrets.yaml passed with
+  # `-f`, or as --set-string flags sourced from CI secrets — never here.
+  # See templates/secrets.yaml.
+  secrets:
+    databaseUrl: ""
+    mongodbUri: ""
+    redisHost: ""
+    redisPort: "6379"
+    redisUsername: ""
+    redisPassword: ""
+    supabaseUrl: ""
+    supabaseKey: ""
+    gcpProjectId: ""
   namespace:
     name: "adpulse"
     labels:
@@ -101,10 +114,23 @@ adpulse:
       repository: adpulse18/adpulse-engagement-subscriber-svc
       pullPolicy: Always
       tag: "0.0.3"
-    service:
-      type: LoadBalancer
-      port: 5000
-      targetPort: 5000
+    # A Pub/Sub consumer with no HTTP server: no `service` block. The one that
+    # used to be here pointed a public LoadBalancer at a port the pod never
+    # listened on.
+  ad_refresh_cache_svc:
+    name: ad-refresh-cache-svc
+    labels:
+      app.kubernetes.io/name: ad-refresh-cache-svc
+      app.kubernetes.io/instance: adpulse
+      app.kubernetes.io/managed-by: Helm
+    replicaCount: 1
+    selectorLabels:
+      app.kubernetes.io/name: ad-refresh-cache-svc
+      app.kubernetes.io/instance: adpulse
+    image:
+      repository: adpulse18/ad-refresh-cache-svc
+      pullPolicy: Always
+      tag: "0.0.3"
 hpa:
   minReplicas: 1
   maxReplicas: 100
