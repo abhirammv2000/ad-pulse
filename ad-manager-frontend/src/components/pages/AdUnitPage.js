@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import Table from '@mui/material/Table';
 import TableHead from '@mui/material/TableHead';
@@ -8,26 +8,27 @@ import TableCell from '@mui/material/TableCell';
 import Button from '@mui/material/Button';
 import AddAdUnitDialog from '../AdUnitDialog'; // Assuming AddAdUnitDialog component is in a separate file
 import { useParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../config';
 
 const AdUnitPage = () => {
   const { PubId } = useParams();
   const [adUnits, setAdUnits] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
 
-  const baseUrl = process.env.REACT_APP_API_BASE_URL;
+  const baseUrl = API_BASE_URL;
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const response = await axios.get(`${baseUrl}/adunit/publisher/${PubId}`);
       setAdUnits(response.data);
     } catch (error) {
       console.error('Error fetching ad units:', error);
     }
-  };
+  }, [baseUrl, PubId]);
 
   useEffect(() => {
     fetchData();
-  }, [PubId]);
+  }, [fetchData]);
 
   const handleSaveAdUnit = async (adUnitName, adUnitType, preferences) => {
     try {

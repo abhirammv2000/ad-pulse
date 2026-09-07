@@ -1,14 +1,16 @@
-migrateup: 
-	migrate -path db/migration -database "postgres://postgres.htppxkcokqiphaqkpnjc:[YOUR-PASSWORD]@aws-0-us-west-1.pooler.supabase.com:5432/postgres" -verbose up
+# DATABASE_URL must be exported before running the migrate targets, e.g.
+#   export DATABASE_URL="postgres://user:password@host:5432/postgres"
+migrateup:
+	migrate -path db/migration -database "$(DATABASE_URL)" -verbose up
 
-migratedown: 
-	migrate -path db/migration -database "postgres://postgres.htppxkcokqiphaqkpnjc:[YOUR-PASSWORD]@aws-0-us-west-1.pooler.supabase.com:5432/postgres" -verbose down
+migratedown:
+	migrate -path db/migration -database "$(DATABASE_URL)" -verbose down
 
 sqlc:
 	sqlc generate
 
 test:
-	go test -v -race -cover ./... 
+	go test -v -race -cover ./...
 
 server:
 	go run main.go
@@ -16,4 +18,4 @@ server:
 mock:
 	mockgen -package mockdb -destination db/mock/store.go adserver/db/sqlc Store
 
-.PHONY:	postgres createdb dropdb migrateup migratedown sqlc server mock 
+.PHONY: migrateup migratedown sqlc test server mock

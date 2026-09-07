@@ -1,9 +1,8 @@
-from sqlalchemy import Column, String, Integer, JSON, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.models.base import Base
 
-Base = declarative_base()
 
 class Advertiser(Base):
     __tablename__ = 'advertiser'
@@ -22,5 +21,3 @@ class Advertiser(Base):
 
     def __repr__(self):
         return f"<Advertiser(id={self.advertiserid}, name='{self.advertisername}', state='{self.advertiserstate}')>"
-
-  

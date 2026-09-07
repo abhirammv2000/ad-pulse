@@ -20,11 +20,18 @@ spec:
         - name: {{ .Values.adpulse.ad_manager_svc.name }}
           image: "{{ .Values.adpulse.ad_manager_svc.image.repository }}:{{ .Values.adpulse.ad_manager_svc.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.adpulse.fullname }}-secrets
           ports:
             - name: http
               containerPort: {{ .Values.adpulse.ad_manager_svc.service.port }}
               protocol: TCP
-          # livenessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http

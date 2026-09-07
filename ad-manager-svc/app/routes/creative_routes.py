@@ -1,36 +1,42 @@
+import os
+
 from flask import request, jsonify, Blueprint
 import requests
+from werkzeug.utils import secure_filename
 from app.enums.States import States
 from app.services.creative_service import create_creative, update_creative, get_creative_by_id, get_all_creatives, update_creative_state, get_creative_by_state, get_creative_by_advertiser_id
 
 creative_blueprint = Blueprint('creative', __name__)
 
-SUPABASE_URL = "***REMOVED***"
-SUPABASE_KEY = "***REMOVED***"
-FOLDER_NAME = "Creatives"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+BUCKET_NAME = os.getenv("SUPABASE_BUCKET", "Creatives")
 
 def upload_image_to_supabase(image_file, filename):
-    auth = f"Bearer {SUPABASE_KEY}"
     headers = {
-        "authorization": auth,
+        "authorization": f"Bearer {SUPABASE_KEY}",
         "api_key": SUPABASE_KEY
     }
-    url = f"{SUPABASE_URL}/storage/v1/object/{FOLDER_NAME}/{filename}"
-    files = {"file": (filename, image_file, "image/jpeg")}
-    response = requests.post(url, headers=headers, files=files)
+    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{filename}"
+    files = {"file": (filename, image_file, image_file.mimetype or "application/octet-stream")}
+    response = requests.post(url, headers=headers, files=files, timeout=30)
     return response.json()
 
 @creative_blueprint.route("/creative/upload", methods=["POST"])
 def upload_image():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return jsonify({"error": "Creative storage is not configured"}), 503
+
     if "image" not in request.files:
         return jsonify({"error": "No image provided"}), 400
-    
+
     image_file = request.files["image"]
     if image_file.filename == "":
         return jsonify({"error": "No image selected"}), 400
 
-    # Get the filename argument from the request
-    filename = request.args.get('filename')
+    # Get the filename argument from the request. It lands in a storage URL
+    # path, so strip anything that could escape the bucket folder.
+    filename = secure_filename(request.args.get('filename', ''))
     if not filename:
         return jsonify({"error": "Filename not provided"}), 400
 
@@ -39,7 +45,7 @@ def upload_image():
         return jsonify({"error": "Failed to upload image", "response": response}), 400
 
     # Return the URL of the uploaded image
-    image_url = f"{SUPABASE_URL}/storage/v1/object/public/Creatives/{filename}"
+    image_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{filename}"
     return jsonify({"image_url": image_url}), 200
 
 @creative_blueprint.route('/creative', methods=['POST'])

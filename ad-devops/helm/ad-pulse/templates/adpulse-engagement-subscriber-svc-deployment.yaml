@@ -20,11 +20,8 @@ spec:
         - name: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.name }}
           image: "{{ .Values.adpulse.adpulse_engagement_subscriber_svc.image.repository }}:{{ .Values.adpulse.adpulse_engagement_subscriber_svc.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.adpulse.adpulse_engagement_subscriber_svc.service.port }}
-              protocol: TCP
-          # livenessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: http
+          envFrom:
+            - secretRef:
+                name: {{ .Values.adpulse.fullname }}-secrets
+          # This is a Pub/Sub consumer, not an HTTP server: it has no port to
+          # probe, so there is no liveness/readiness check here.
