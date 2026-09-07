@@ -1,71 +1,116 @@
 // HomePage.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import adServeRequestBody from '../../requests/adServeRequest'; 
+import adServeRequestBody from '../../requests/adServeRequest';
+import { AD_SERVER_URL } from '../../config';
 
-const HomePage = () => {
-  return (
-      <div>
-        <h1>Welcome to Ad Pulse</h1>
-        <p>This is the homepage of Ad Pulse. You can navigate through the navbar.</p>
-        <AdPopUp adUnitId="ADU20240417203820766" width={1280} height={720} position="bottom"/>
-        <AdPopUp adUnitId="ADU20240425230346352" width={1280} height={720} position="top"/>
-        <AdPopUp adUnitId="ADU20240425222446949" width={320} height={800} position="right"/>
-      </div>
-  );
+// The demo publisher whose ad units the homepage renders.
+const DEMO_PUBLISHER_ID = 'P20240417203653208';
+
+const POSITION_STYLES = {
+  bottom: { bottom: 0, left: '50%', transform: 'translateX(-50%)', marginBottom: '20px' },
+  top: { top: 0, left: '50%', transform: 'translateX(-50%)', marginTop: '20px' },
+  right: { top: '50%', right: 0, transform: 'translateY(-50%)', marginRight: '20px' },
 };
 
-function ImageContainer() {
+const HomePage = () => (
+  <div>
+    <h1>Welcome to Ad Pulse</h1>
+    <p>This is the homepage of Ad Pulse. You can navigate through the navbar.</p>
+    <AdPopUp adUnitId="ADU20240417203820766" width={1280} height={720} position="bottom" />
+    <AdPopUp adUnitId="ADU20240425230346352" width={1280} height={720} position="top" />
+    <AdPopUp adUnitId="ADU20240425222446949" width={320} height={800} position="right" />
+  </div>
+);
+
+/**
+ * Requests one ad for an ad unit and renders the returned image.
+ *
+ * Clicking through and rendering both report back to the engagement service via
+ * the tracking URLs the ad server hands out with the bid.
+ */
+function AdPopUp({ adUnitId, width, height, position, publisherId = DEMO_PUBLISHER_ID }) {
   const [imageUrl, setImageUrl] = useState('');
   const [clickUrl, setClickUrl] = useState('');
   const [landingUrl, setLandingUrl] = useState('');
-  const adServeUrl = process.env.REACT_APP_API_AD_SERVER_URL;
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchAdImage = async () => {
       try {
-        adServeRequestBody.imp[0].native.request.assets[0].img.w = 1280; // Update the image width
-        adServeRequestBody.imp[0].native.request.assets[0].img.h = 720; // Update the image height
-        const response = await axios.post(`${adServeUrl}/adserve?adunit_id=ADU20240417203820766&publisher_id=P20240417203653208`, adServeRequestBody);
-        const adm = JSON.parse(response.data.bid[0].adm);
-        console.log('Ad image URL:', adm.imageURL);
-        setImageUrl(adm.imageURL);
-        setClickUrl(response.data.bid[0].ext.clickUrl);
-        setLandingUrl(response.data.bid[0].ext.landingUrl);
-        await axios.get(response.data.bid[0].ext.renderUrl);
+        // adServeRequestBody is a shared module object, so copy it before
+        // setting this slot's dimensions — mutating it would let whichever
+        // AdPopUp rendered last decide the size for all of them.
+        const requestBody = {
+          ...adServeRequestBody,
+          imp: [{
+            ...adServeRequestBody.imp[0],
+            native: {
+              ...adServeRequestBody.imp[0].native,
+              request: {
+                ...adServeRequestBody.imp[0].native.request,
+                assets: [{
+                  ...adServeRequestBody.imp[0].native.request.assets[0],
+                  img: { ...adServeRequestBody.imp[0].native.request.assets[0].img, w: width, h: height },
+                }],
+              },
+            },
+          }],
+        };
+
+        const response = await axios.post(
+          `${AD_SERVER_URL}/adserve?adunit_id=${adUnitId}&publisher_id=${publisherId}`,
+          requestBody,
+        );
+
+        // A 204 means no bid: nothing to render.
+        if (cancelled || !response.data || !response.data.bid || response.data.bid.length === 0) {
+          return;
+        }
+
+        const [bid] = response.data.bid;
+        setImageUrl(JSON.parse(bid.adm).imageURL);
+        setClickUrl(bid.ext.clickUrl);
+        setLandingUrl(bid.ext.landingUrl);
+        await axios.get(bid.ext.renderUrl);
       } catch (error) {
-        console.error('Error fetching ad image:', error);
+        console.error(`Error fetching ad for ${adUnitId}:`, error);
       }
     };
 
     fetchAdImage();
-  }, [adServeUrl]); // Trigger the effect when adServeUrl changes
+    return () => {
+      cancelled = true;
+    };
+  }, [adUnitId, publisherId, width, height]);
 
   const handleClick = async () => {
-    window.open(landingUrl.includes('http') ? landingUrl : `https://${landingUrl}`, '_blank');
+    if (landingUrl) {
+      window.open(landingUrl.startsWith('http') ? landingUrl : `https://${landingUrl}`, '_blank', 'noopener');
+    }
     try {
-      const response = await axios.get(clickUrl);
-      console.log('Click URL:', response.data);
+      await axios.get(clickUrl);
     } catch (error) {
-      console.error('Error fetching click URL:', error);
+      console.error('Error reporting click:', error);
     }
   };
 
+  if (!imageUrl) {
+    return null;
+  }
+
   return (
-    <div className="image-container" style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', maxWidth: '320px', maxHeight: '180px', marginBottom: '20px' }}>
-      {imageUrl && (
-        <img 
-          src={imageUrl} 
-          alt="Advertisement" 
-          style={{ 
-            maxWidth: '100%', 
-            maxHeight: '100%', 
-            width: 'auto', 
-            height: 'auto' 
-          }}
-          onClick={handleClick}
-        />
-      )}
+    <div
+      className="image-container"
+      style={{ position: 'fixed', maxWidth: '320px', maxHeight: '180px', ...POSITION_STYLES[position] }}
+    >
+      <img
+        src={imageUrl}
+        alt="Advertisement"
+        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', cursor: 'pointer' }}
+        onClick={handleClick}
+      />
     </div>
   );
 }

@@ -10,7 +10,7 @@ def get_all_campaigns_api():
     # Get all campaigns
     campaigns = get_all_campaigns()
 
-    return campaigns, 200
+    return jsonify(campaigns), 200
 
 
 @campaign_blueprint.route('/campaign/<campaignid>', methods=['GET'])
@@ -21,7 +21,7 @@ def get_campaign_by_id_api(campaignid):
     if campaign is None:
         return jsonify({'error': 'Campaign not found'}), 404
 
-    return campaign, 200
+    return jsonify(campaign), 200
 
 
 @campaign_blueprint.route('/campaign/state/<state>', methods=['GET'])
@@ -29,7 +29,7 @@ def get_campaign_by_state_api(state):
     # Get campaign by state
     campaigns = get_campaign_by_state(state)
 
-    return campaigns, 200
+    return jsonify(campaigns), 200
 
 
 @campaign_blueprint.route('/campaign', methods=['POST'])
@@ -37,8 +37,6 @@ def create_campaign_api():
     # Create campaign
     json_data = request.json
     created_campaign = create_campaign(json_data)
-    # print("!!!!!!!!!!!!!!!!!!")
-    # print(created_campaign)
     return jsonify({'message': 'Campaign created',
                     'campaign': created_campaign
                     }), 201
@@ -74,4 +72,4 @@ def get_campaign_by_advertiser_api(advertiser_id):
     # Get campaign by advertiser ID
     campaigns = get_campaign_by_advertiser_id(advertiser_id)
 
-    return campaigns, 200
+    return jsonify(campaigns), 200

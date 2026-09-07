@@ -39,7 +39,7 @@ def get_ad_unit_api(ad_unit_id):
     ad_unit = get_ad_unit_by_id(ad_unit_id)
     
     if ad_unit:
-        return ad_unit, 200
+        return jsonify(ad_unit), 200
     else:
         return jsonify({'error': 'Ad unit not found'}), 404
     
@@ -48,7 +48,7 @@ def get_all_ad_units_api():
     # Get all ad units
     ad_units = get_all_ad_units()
     
-    return ad_units, 200
+    return jsonify(ad_units), 200
 
 @ad_unit_blueprint.route('/adunit', methods=['PATCH'])
 def update_ad_unit_state_api():
@@ -68,7 +68,7 @@ def get_ad_unit_by_state_api(state):
     if state not in States.__members__:
         return jsonify({'error': 'Invalid state'}), 400
     ad_units = get_ad_unit_by_state(state)
-    return ad_units, 200
+    return jsonify(ad_units), 200
 
 @ad_unit_blueprint.route('/adunit/publisher/<publisher_id>', methods=['GET'])
 def get_ad_unit_by_publisher_api(publisher_id):
@@ -77,4 +77,4 @@ def get_ad_unit_by_publisher_api(publisher_id):
     ad_units = get_ad_unit_by_publisher(publisher_id)
     if not ad_units:
         return jsonify({'error': 'Publisher not found'}), 404
-    return ad_units, 200
+    return jsonify(ad_units), 200

@@ -142,7 +142,8 @@ jobs:
             yq eval '.adpulse.ad_manager_frontend.image.tag = "'"$(cat ad-manager-frontend/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.adpulse_engagement_svc.image.tag = "'"$(cat adpulse-engagement-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
             yq eval '.adpulse.ad_server_svc.image.tag = "'"$(cat ad-server-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
-            yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml 
+            yq eval '.adpulse.adpulse_engagement_subscriber_svc.image.tag = "'"$(cat adpulse-engagement-subscriber-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
+            yq eval '.adpulse.ad_refresh_cache_svc.image.tag = "'"$(cat ad-refresh-cache-svc/version.txt)"'"' -i ./ad-devops/helm/ad-pulse/values.yaml
 
         - name: Commit changes
           run: |
@@ -196,8 +197,24 @@ jobs:
           helm repo update
   
       - name: Upgrade Helm chart
+        # Credentials come from repo/environment secrets, never from values.yaml
+        # (see ad-devops/helm/ad-pulse/templates/secrets.yaml). Configure these
+        # under Settings > Secrets and variables > Actions before this runs.
         run: |
-          helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --set ad_server_url="http://34.31.128.115:8080" --set ad_manager_url="http://34.67.120.91:5000" --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc"
+          helm upgrade --install stage ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse \
+            --set ad_server_url="http://34.31.128.115:8080" \
+            --set ad_manager_url="http://34.67.120.91:5000" \
+            --set ad_engagement_svc_clk="http://34.30.188.53:8081/engagement/clk" \
+            --set ad_engagement_svc_rndr="http://34.30.188.53:8081/engagement/csc" \
+            --set-string adpulse.secrets.databaseUrl="${{ secrets.DATABASE_URL_STAGE }}" \
+            --set-string adpulse.secrets.mongodbUri="${{ secrets.MONGODB_URI_STAGE }}" \
+            --set-string adpulse.secrets.redisHost="${{ secrets.REDIS_HOST_STAGE }}" \
+            --set-string adpulse.secrets.redisPort="${{ secrets.REDIS_PORT_STAGE }}" \
+            --set-string adpulse.secrets.redisUsername="${{ secrets.REDIS_USERNAME_STAGE }}" \
+            --set-string adpulse.secrets.redisPassword="${{ secrets.REDIS_PASSWORD_STAGE }}" \
+            --set-string adpulse.secrets.supabaseUrl="${{ secrets.SUPABASE_URL }}" \
+            --set-string adpulse.secrets.supabaseKey="${{ secrets.SUPABASE_KEY }}" \
+            --set-string adpulse.secrets.gcpProjectId="${{ vars.GCP_PROJECT_ID_STAGE }}"
 
 
     integration-test:

@@ -1,24 +1,31 @@
-from pymongo import MongoClient
+import os
+
 from flask import jsonify
+from pymongo import MongoClient
 
-# Connect to the MongoDB server
-client = MongoClient("mongodb+srv://nihalsreenivasu:bMyx3JQLZ5Mj85Fx@adpulse-engagement.4du8wij.mongodb.net/?retryWrites=true&w=majority")
+_collection = None
 
-# Access the ad_pulse database
-db = client.ad_pulse
 
-# Access the reports collection
-collection = db.reports
+def _reports():
+    """Return the `reports` collection, connecting on first use."""
+    global _collection
+    if _collection is None:
+        uri = os.getenv("MONGODB_URI")
+        if not uri:
+            raise RuntimeError("MONGODB_URI is not set")
+        client = MongoClient(uri)
+        _collection = client[os.getenv("MONGODB_DATABASE", "ad_pulse")].reports
+    return _collection
+
 
 def get_report():
-    reports = list(collection.find({}))
-    return jsonify(reports)
+    return jsonify(list(_reports().find({})))
+
 
 def get_report_by_ad_id(ad_id):
-    reports = list(collection.find({'_id': ad_id}))
-    return jsonify(reports)
+    return jsonify(list(_reports().find({'_id': ad_id})))
+
 
 def delete_report_by_ad_id(ad_id):
-    result = collection.delete_one({'_id': ad_id})
-    print(result)
-    return True
+    result = _reports().delete_one({'_id': ad_id})
+    return result.deleted_count > 0

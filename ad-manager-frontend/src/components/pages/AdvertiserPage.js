@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -14,11 +14,9 @@ import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import styled from '@emotion/styled';
 import { Link } from 'react-router-dom';
-import {
-    Select,
-    MenuItem,
-  } from '@material-ui/core';
-  import InputLabel from '@mui/material/InputLabel';
+import { Select, MenuItem } from '@mui/material';
+import InputLabel from '@mui/material/InputLabel';
+import { API_BASE_URL } from '../../config';
 
 
 
@@ -31,7 +29,7 @@ const TableContainer = styled.div`
 
 const AdvertiserPage = (props) => {
 
-  const baseUrl = process.env.REACT_APP_API_BASE_URL
+  const baseUrl = API_BASE_URL
 
   const [open, setOpen] = useState(false);
   const [advertiserName, setAdvertiserName] = useState('');
@@ -43,13 +41,12 @@ const AdvertiserPage = (props) => {
   const [contactPhone, setContactPhone] = useState('');
   const [advertiserType, setAdvertiserType] = useState('');
   // Will delete after login page
-  const [createdBy, setCreatedBy] = useState('Admin');
-  const [createdAt, setCreatedAt] = useState('2022-03-18T15:30:00');
-  const [updatedBy, setUpdatedBy] = useState('Admin');
-  const [updatedAt, setUpdatedAt] = useState('2022-03-18T15:30:00');
+  const createdBy = 'Admin';
+  const createdAt = '2022-03-18T15:30:00';
+  const updatedBy = 'Admin';
+  const updatedAt = '2022-03-18T15:30:00';
 
   const [advertisers, setAdvertisers] = useState([]);
-  const [selectedAdvertiser, setSelectedAdvertiser] = useState({});
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -57,11 +54,6 @@ const AdvertiserPage = (props) => {
 
   const handleClose = () => {
     setOpen(false);
-  };
-
-  const handleAdvertiserClick = (advertiser) => {
-    setSelectedAdvertiser(advertiser);
-    setOpen(true);
   };
 
   const handleSave = () => {
@@ -76,7 +68,7 @@ const AdvertiserPage = (props) => {
           email: contactEmail,
           phone: contactPhone
         },
-        advertiseryype: advertiserType,
+        advertisertype: advertiserType,
         createdby: createdBy,
         updatedby: updatedBy,
         createdat: createdAt,
@@ -104,7 +96,7 @@ const AdvertiserPage = (props) => {
       });
   };
 
-  const fetchAdvertisers = () => {
+  const fetchAdvertisers = useCallback(() => {
     axios.get(`${baseUrl}/advertiser`)
       .then(response => {
         setAdvertisers(response.data);
@@ -112,11 +104,11 @@ const AdvertiserPage = (props) => {
       .catch(error => {
         console.error('Error fetching advertisers:', error);
       });
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     fetchAdvertisers();
-  }, []); // Empty dependency array to fetch data only once on component mount
+  }, [fetchAdvertisers]);
 
   const handleStateChange = (advertiserId, currentState) => {
     const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';

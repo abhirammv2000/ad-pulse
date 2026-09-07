@@ -1,9 +1,8 @@
 from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 
-Base = declarative_base()
-
+from app.models.base import Base
 from app.models.publisher import Publisher
+
 
 class AdUnit(Base):
     __tablename__ = 'adunit'

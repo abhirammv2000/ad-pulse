@@ -1,11 +1,10 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
 
-from app.models.campaign import Campaign
 from app.models.advertiser import Advertiser
+from app.models.base import Base
+from app.models.campaign import Campaign
 
-Base = declarative_base()
 
 class Ad(Base):
     __tablename__ = 'ads'
