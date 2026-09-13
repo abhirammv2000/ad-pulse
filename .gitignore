@@ -1,4 +1,34 @@
+# OS / editor
 .DS_Store
+.vscode/
+.idea/
+
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+*.env
+!app.env.example
+*-service-account*.json
+ad-pulse-team1-*.json
+key.json
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+build/
+npm-debug.log*
+
+# Go
+*.exe
+main
+
+# Misc
 test.sh
-.vscode
-./__pycache__/*

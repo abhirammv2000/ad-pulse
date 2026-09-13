@@ -1,23 +1,21 @@
-# Use an official Node.js runtime as the base image
-FROM node:14-alpine
-
-# Set the working directory in the container
+# Build stage
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy the package.json and package-lock.json files to the container
-COPY package*.json ./
+# `npm ci` installs exactly the lockfile, and the previous `--force` was masking
+# peer-dependency conflicts rather than resolving them.
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install the dependencies
-RUN npm install --force
-
-# Copy the app source code to the container
 COPY . .
-
-# Build the app
 RUN npm run build
 
-# Expose the port on which the app will run
-EXPOSE 3000
+# Run stage — nginx serving the static build. The old image shipped the Create
+# React App dev server, which is why the deployment asked for 4Gi and 3 CPUs.
+FROM nginx:1.27-alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.sh /docker-entrypoint.d/99-adpulse-config.sh
+RUN chmod +x /docker-entrypoint.d/99-adpulse-config.sh
 
-# Define the command to run the app
-CMD ["npm", "start"]
+EXPOSE 3000

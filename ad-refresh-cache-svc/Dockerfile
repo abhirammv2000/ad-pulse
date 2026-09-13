@@ -1,15 +1,16 @@
-# Use a base image
-FROM python:3.8.2
+FROM python:3.12-slim
 
-# Copy the Python file to the container
-COPY refresh-cache.py /refresh-cache.py
+WORKDIR /app
 
-# Install requirements
-COPY requirements.txt /requirements.txt
-RUN pip install -r /requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Set the working directory
-WORKDIR /
+COPY refresh-cache.py .
 
-# Run the Python file
+RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+USER appuser
+
+ENV PYTHONUNBUFFERED=1
+
 CMD ["python", "refresh-cache.py"]

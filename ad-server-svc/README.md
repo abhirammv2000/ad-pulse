@@ -1,46 +1,45 @@
-# AdServer
-Backend code for the Ad-Server SVC.
+# ad-server-svc
 
-## Steps to setup the project locally
-Excecute the commands sequentially in order to successfully run the application locally on a Mac OS. For a different OS use the links that follow
+Go/Gin service that answers `POST /adserve?adunit_id=...&publisher_id=...`: it
+validates the publisher and ad unit against ad-manager-svc, reads the active
+campaigns/ads out of Redis (kept warm by ad-manager-svc's cache endpoints),
+filters them by flight dates and targeting rules, ranks the survivors, and
+returns a bid per matching impression along with click/render tracking URLs.
 
-### Install Golang
-```
-brew install golang
+## Configuration
 
-go version
-```
+Environment variables, or an `app.env` file in the working directory (see
+`app.env.example`) — either works, and the environment wins if both are set.
 
-### Different OS
-```
-Golang - https://go.dev/doc/install
+| Variable | Default | Purpose |
+|---|---|---|
+| `SERVER_ADDRESS` | `0.0.0.0:8080` | Address to listen on |
+| `AD_MANAGER_ADDRESS` | `http://localhost:5000` | ad-manager-svc base URL |
+| `REDIS_HOST` | `localhost` | Redis host for the serving cache |
+| `REDIS_PORT` | `6379` | |
+| `REDIS_USERNAME`, `REDIS_PASSWORD` | (empty) | |
+| `CLICK_URL`, `RENDER_URL` | `http://localhost:8081/engagement/...` | adpulse-engagement-svc endpoints embedded in every bid |
+
+## Running
 
 ```
-
-### Run the server
-```
-make server
-```
-
-### Build Docker image
-```
-docker build -t adserver-svc .
-```
-
-### Run as Docker container
-```
-docker run \
-      --name advserver-svc \
-      --rm -it \
-      -v /:/host:ro \
-      -v /var/run/docker.sock:/var/run/docker.sock:ro \
-      --privileged \
-      --pid=host \
-      --network=host \
-      adserver-svc:latest
+cp app.env.example app.env   # fill in real values
+make server                  # go run main.go
 ```
 
+## Testing
 
+```
+go test -v -race -cover ./...
+```
 
+## Layout
 
-
+- `api/adserve.go` — the `/adserve` handler: collects eligible ads across every
+  active campaign, then ranks and bids once.
+- `api/bids.go` — matches ranked ads against the impressions on offer and
+  builds the OpenRTB-ish bid response.
+- `util/helper.go` — targeting rules (flight dates, ad unit, day, hour) and
+  ranking.
+- `cache/` — the Redis-backed `Store` interface and the JSON shapes cached
+  there (shared with what ad-manager-svc writes).

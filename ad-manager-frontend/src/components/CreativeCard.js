@@ -8,6 +8,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreatives }) => {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -16,7 +17,7 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
   const [creativeHeight, setCreativeHeight] = useState(0);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  const baseUrl = process.env.REACT_APP_API_BASE_URL;
+  const baseUrl = API_BASE_URL;
 
   const handleAddDialogOpen = () => {
     setAddDialogOpen(true);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import { Link } from 'react-router-dom';
@@ -14,6 +14,7 @@ import TableBody from '@mui/material/TableBody';
 import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import styled from '@emotion/styled';
+import { API_BASE_URL } from '../../config';
 
 const TableContainer = styled.div`
   margin-top: 20px;
@@ -24,7 +25,7 @@ const TableContainer = styled.div`
 
 const PublisherPage = () => {
 
-  const baseUrl = process.env.REACT_APP_API_BASE_URL
+  const baseUrl = API_BASE_URL
 
   const [open, setOpen] = useState(false);
   const [publisherName, setPublisherName] = useState('');
@@ -82,7 +83,7 @@ const PublisherPage = () => {
       });
   };
 
-  const fetchPublishers = () => {
+  const fetchPublishers = useCallback(() => {
     axios.get(`${baseUrl}/publisher`)
       .then(response => {
         setPublishers(response.data);
@@ -90,11 +91,11 @@ const PublisherPage = () => {
       .catch(error => {
         console.error('Error fetching publishers:', error);
       });
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     fetchPublishers();
-  }, []);
+  }, [fetchPublishers]);
 
   const handleStateChange = (publisherId, currentState) => {
     const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';

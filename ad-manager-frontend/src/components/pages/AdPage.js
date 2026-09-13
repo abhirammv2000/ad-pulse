@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import { Link } from 'react-router-dom';
@@ -16,6 +16,7 @@ import TableCell from '@mui/material/TableCell';
 import styled from '@emotion/styled';
 import { useParams } from 'react-router-dom';
 import {FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import { API_BASE_URL } from '../../config';
 
 
 
@@ -28,7 +29,7 @@ const TableContainer = styled.div`
 
 const AdPage = () => {
 
-  const baseUrl = process.env.REACT_APP_API_BASE_URL
+  const baseUrl = API_BASE_URL
   const { AdvId,CampId } = useParams();
 //   console.log("ad id",AdvId);
 //   console.log("camp id",CampId);
@@ -131,7 +132,7 @@ const AdPage = () => {
       });
   };
 
-  const fetchAds = () => {
+  const fetchAds = useCallback(() => {
     axios.get(`${baseUrl}/ad/advertiser/${AdvId}/campaign/${CampId}`)
       .then(response => {
         setAds(response.data);
@@ -139,9 +140,9 @@ const AdPage = () => {
       .catch(error => {
         console.error('Error fetching ads:', error);
       });
-  };
+  }, [baseUrl, AdvId, CampId]);
 
-  const fetchAdUnits = () => {
+  const fetchAdUnits = useCallback(() => {
     axios.get(`${baseUrl}/adunit`)
         .then(response => {
             setAdUnits(response.data);
@@ -149,9 +150,9 @@ const AdPage = () => {
         .catch(error => {
             console.error('Error fetching ad units:', error);
         });
-    };
+    }, [baseUrl]);
 
-    const fetchCreativeList = () => {
+    const fetchCreativeList = useCallback(() => {
         axios.get(`${baseUrl}/creative`)
             .then(response => {
                 setCreativeList(response.data);
@@ -159,13 +160,13 @@ const AdPage = () => {
             .catch(error => {
                 console.error('Error fetching creative list:', error);
             });
-    };
+    }, [baseUrl]);
 
   useEffect(() => {
     fetchAds();
     fetchAdUnits();
     fetchCreativeList();
-  }, []);
+  }, [fetchAds, fetchAdUnits, fetchCreativeList]);
 
   const handleStateChange = (adId, currentState) => {
     const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
