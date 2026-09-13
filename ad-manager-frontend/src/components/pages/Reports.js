@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Table, TableHead, TableBody, TableRow, TableCell } from '@mui/material';
 import styled from '@emotion/styled';
 import Button from '@mui/material/Button';
+import { API_BASE_URL } from '../../config';
 const TableContainer = styled.div`
   margin-top: 20px;
   margin-left: 0;
@@ -9,19 +10,19 @@ const TableContainer = styled.div`
 `; 
 function ReportsTable() {
     
-  const baseUrl = process.env.REACT_APP_API_BASE_URL
+  const baseUrl = API_BASE_URL
   const [reports, setReports] = useState([]);
+
+  const fetchreports = useCallback(() => {
+    fetch(`${baseUrl}/reports`)
+      .then(response => response.json())
+      .then(data => setReports(data))
+      .catch(error => console.error('Error fetching reports:', error));
+  }, [baseUrl]);
+
   useEffect(() => {
     fetchreports();
-   
-  }, []);
-  const fetchreports = async () => {
-     // Fetch data from baseurl:5000/reports
-     fetch(`${baseUrl}/reports`)
-     .then(response => response.json())
-     .then(data => setReports(data))
-     .catch(error => console.error('Error fetching reports:', error));
-  }
+  }, [fetchreports]);
   return (
     <div style={{width: "100%", marginLeft: 0}}>
     <Button 

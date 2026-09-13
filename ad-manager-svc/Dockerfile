@@ -1,22 +1,20 @@
-# Use an official Python runtime as the base image
-FROM python:3.9
+FROM python:3.12-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
-
-# Copy the requirements file into the container
+# Dependencies first, so edits to the source don't invalidate the install layer.
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install the Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code into the container
 COPY . .
+
+# Run as a non-root user.
+RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+USER appuser
 
 EXPOSE 5000
 
-# Set the command to run the application
-CMD [ "python", "run.py" ]
+# gunicorn, not the Flask development server: `flask run` is single-threaded
+# and explicitly not for production use.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "60", "run:app"]
