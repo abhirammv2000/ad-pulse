@@ -20,6 +20,16 @@ spec:
         - name: {{ .Values.adpulse.adpulse_engagement_svc.name }}
           image: "{{ .Values.adpulse.adpulse_engagement_svc.image.repository }}:{{ .Values.adpulse.adpulse_engagement_svc.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The HPA below scales on CPU utilization, which Kubernetes can only
+          # compute as a percentage of this request - no request means the HPA
+          # never gets a utilization figure and never scales.
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 50m
+            limits:
+              memory: 64Mi
+              cpu: 200m
           envFrom:
             - secretRef:
                 name: {{ .Values.adpulse.fullname }}-secrets
