@@ -12,7 +12,7 @@
 #     python -m unittest integration_test
 #
 # The previous version of this file only started Kafka/Zookeeper, which the
-# engagement pipeline stopped using when it moved to GCP Pub/Sub — it never
+# engagement pipeline stopped using when it moved to GCP Pub/Sub. It never
 # actually ran the application.
 
 services:
