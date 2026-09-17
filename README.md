@@ -36,9 +36,27 @@ ad-manager-frontend  →  ad-manager-svc  →  Postgres (campaigns/ads/creatives
 
 ## Running locally
 
-Each service reads its configuration from environment variables — nothing is
-hardcoded, so you point every service at your own Postgres, Redis, MongoDB and
-GCP project.
+The fastest way to see the whole thing working end to end, including the
+click/render pipeline, is:
+
+```
+docker compose -f ad-devops/deployments/docker-compose.yaml up --build
+```
+
+This starts Postgres, Redis, MongoDB, a local Pub/Sub emulator (so the
+engagement pipeline works with no real GCP project), and all six services.
+Frontend at http://localhost:3000, ad-manager-svc at :5000, ad-server-svc at
+:8080. With it running, the root `integration_test.py` exercises the full
+create → cache → serve → click/render → report flow:
+
+```
+AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
+  python -m unittest integration_test -v
+```
+
+To run a single service against your own infra instead, each service reads
+its configuration from environment variables — nothing is hardcoded, so you
+point it at your own Postgres, Redis, MongoDB and GCP project.
 
 **ad-manager-svc**
 ```

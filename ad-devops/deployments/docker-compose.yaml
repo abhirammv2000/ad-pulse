@@ -1,18 +1,162 @@
-version: '3'
+﻿# Full local stack: Postgres, Redis, MongoDB, a local Pub/Sub emulator (so the
+# click/render pipeline works without a real GCP project), and all six
+# services. Run from the repo root:
+#
+#   docker compose -f ad-devops/deployments/docker-compose.yaml up --build
+#
+# Then: frontend on http://localhost:3000, ad-manager-svc on :5000,
+# ad-server-svc on :8080, adpulse-engagement-svc on :8081. The root
+# integration_test.py can run against this stack with:
+#
+#   AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
+#     python -m unittest integration_test
+#
+# The previous version of this file only started Kafka/Zookeeper, which the
+# engagement pipeline stopped using when it moved to GCP Pub/Sub — it never
+# actually ran the application.
 
 services:
-  zookeeper:
-    image: wurstmeister/zookeeper
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: wurstmeister/kafka
-    ports:
-      - "9092:9092"
+  postgres:
+    image: postgres:16-alpine
     environment:
-      KAFKA_ADVERTISED_HOST_NAME: localhost
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_HOST://:29092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      POSTGRES_DB: adpulse
+      POSTGRES_USER: adpulse
+      POSTGRES_PASSWORD: adpulse
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Local stand-in for GCP Pub/Sub. Client libraries in both Go and Python
+  # switch to it automatically when PUBSUB_EMULATOR_HOST is set - no real GCP
+  # project or credentials needed for local dev.
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=adpulse-local
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8085'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: creates the two topics and their subscriptions the emulator
+  # starts empty, matching the defaults in adpulse-engagement-svc and
+  # adpulse-engagement-subscriber-svc (see topicID()/CLICK_SUBSCRIPTION_ID
+  # etc. in their source - override with *_TOPIC_ID/*_SUBSCRIPTION_ID env
+  # vars if you change these).
+  pubsub-init:
+    image: curlimages/curl:8.9.1
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        base=http://pubsub-emulator:8085/v1/projects/adpulse-local
+        curl -sf -X PUT "$$base/topics/click-service-topic"
+        curl -sf -X PUT "$$base/topics/csc-service-topic"
+        curl -sf -X PUT -H 'Content-Type: application/json' \
+          -d '{"topic":"projects/adpulse-local/topics/click-service-topic"}' \
+          "$$base/subscriptions/click-service-topic-sub"
+        curl -sf -X PUT -H 'Content-Type: application/json' \
+          -d '{"topic":"projects/adpulse-local/topics/csc-service-topic"}' \
+          "$$base/subscriptions/csc-service-topic-sub"
+
+  ad-manager-svc:
+    build: ../../ad-manager-svc
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://adpulse:adpulse@postgres:5432/adpulse
+      MONGODB_URI: mongodb://mongodb:27017
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  ad-refresh-cache-svc:
+    build: ../../ad-refresh-cache-svc
+    environment:
+      AD_MANAGER_URL: http://ad-manager-svc:5000
+    depends_on:
+      - ad-manager-svc
+
+  ad-server-svc:
+    build: ../../ad-server-svc
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_ADDRESS: 0.0.0.0:8080
+      AD_MANAGER_ADDRESS: http://ad-manager-svc:5000
+      REDIS_HOST: redis
+      CLICK_URL: http://localhost:8081/engagement/clk
+      RENDER_URL: http://localhost:8081/engagement/csc
+    depends_on:
+      - ad-manager-svc
+      - redis
+
+  adpulse-engagement-svc:
+    build: ../../adpulse-engagement-svc
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_ADDRESS: :8081
+      GCP_PROJECT_ID: adpulse-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
+
+  adpulse-engagement-subscriber-svc:
+    build: ../../adpulse-engagement-subscriber-svc
+    environment:
+      GCP_PROJECT_ID: adpulse-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      MONGODB_URI: mongodb://mongodb:27017
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+
+  ad-manager-frontend:
+    build: ../../ad-manager-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_BASE_URL: http://localhost:5000
+      REACT_APP_API_AD_SERVER_URL: http://localhost:8080
+    depends_on:
+      - ad-manager-svc
+      - ad-server-svc

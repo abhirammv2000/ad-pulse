@@ -4,6 +4,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 from config import Config
+from config.db import init_db
 
 
 def create_app(config_object=Config):
@@ -15,6 +16,11 @@ def create_app(config_object=Config):
     CORS(app, origins=os.getenv("CORS_ALLOWED_ORIGINS", "*").split(","))
 
     register_blueprints(app)
+
+    # No migration tool exists in this project - this is what defines the
+    # Postgres schema. Only creates tables that don't exist yet, so it's safe
+    # to run on every startup.
+    init_db()
 
     @app.route('/health', methods=['GET'])
     def health():

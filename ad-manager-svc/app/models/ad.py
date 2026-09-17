@@ -28,7 +28,11 @@ class Ad(Base):
     createdby = Column(String)
     updatedby = Column(String)
     adstate = Column(String)
-    ad_unit_targeted = Column(String)
+    # A JSON array of ad unit ids (["ADU...", ...]) - was `String`, which
+    # stringified the Python list on the way in; ad-server-svc's Go struct
+    # expects a real array back and fails to unmarshal it (see
+    # `IsAdAvailable`/`adInTargetedAdUnit` in ad-server-svc/util/helper.go).
+    ad_unit_targeted = Column(JSONB)
 
     def __repr__(self):
         return f"<Ad(adid='{self.adid}', adname='{self.adname}', adstate='{self.adstate}')>"
