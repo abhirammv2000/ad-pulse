@@ -55,7 +55,7 @@ AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
 ```
 
 To run a single service against your own infra instead, each service reads
-its configuration from environment variables — nothing is hardcoded, so you
+its configuration from environment variables, nothing is hardcoded, so you
 point it at your own Postgres, Redis, MongoDB and GCP project.
 
 **ad-manager-svc**
@@ -134,6 +134,6 @@ removing credentials that had been committed to the codebase, fixing the
 ad-serving and caching logic, rebuilding the frontend for a real deployment
 instead of the CRA dev server, adding the schema bootstrap and health checks
 the services were missing, wiring real tests into CI in place of stubs that
-never ran, and adding a local Docker Compose stack — including a Pub/Sub
-emulator — so the whole thing runs end to end on a laptop with no cloud
+never ran, and adding a local Docker Compose stack, including a Pub/Sub
+emulator, so the whole thing runs end to end on a laptop with no cloud
 project required.
