@@ -8,7 +8,6 @@ on:
 env:
     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
     unit-tests:
@@ -20,13 +19,35 @@ jobs:
             ref: stage
             fetch-depth: 5
 
-        - name: Run unit tests
+        - name: Run ad-manager-svc unit tests
           run: |
-            echo "Running unit tests"
             cd ad-manager-svc
             pip install -r requirements.txt
             python3 -m unittest discover -s app/test -p "*_test.py"
-            echo "Unit tests passed"
+
+        - name: Set up Go
+          uses: actions/setup-go@v5
+          with:
+            go-version-file: ad-server-svc/go.mod
+
+        - name: Run ad-server-svc tests
+          run: cd ad-server-svc && go test ./...
+
+        - name: Run adpulse-engagement-svc tests
+          run: cd adpulse-engagement-svc && go test ./...
+
+        - name: Set up Node
+          uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+            cache: 'npm'
+            cache-dependency-path: ad-manager-frontend/package-lock.json
+
+        - name: Run ad-manager-frontend unit tests
+          run: |
+            cd ad-manager-frontend
+            npm ci
+            npm test -- --watchAll=false
 
     check-changes-and-build:
       runs-on: ubuntu-latest
@@ -44,27 +65,38 @@ jobs:
             echo "After: ${{ github.sha }}"
             echo "Branch: $(git branch --show-current)"
 
+        # Every changed top-level service folder, one per line, written to
+        # $GITHUB_ENV (the old `::set-env::` command this replaced was
+        # disabled by GitHub in 2020 and only worked here because the
+        # workflow re-enabled it via ACTIONS_ALLOW_UNSECURE_COMMANDS). Each
+        # match is appended, not overwritten, so a push touching more than
+        # one service builds all of them instead of just the last one found.
         - name: Get list of folders
           id: list_folders
           run: |
-                find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*' -not -path './ad-devops' | while read -r dir; do
-                if [[ -n $(git diff --name-only HEAD^ HEAD  -- $dir) ]]; then
-                  echo "::set-env name=FOLDERS::$dir"
-                fi
+                folders=""
+                for dir in */; do
+                  dir=${dir%/}
+                  case "$dir" in .*|ad-devops) continue ;; esac
+                  if [ -n "$(git diff --name-only HEAD^ HEAD -- "$dir")" ]; then
+                    folders="$folders$dir"$'\n'
+                  fi
                 done
-
-        - name: get folder name
-          run: |
-            echo "Folders: $FOLDERS"
+                echo "Folders:"
+                echo "$folders"
+                {
+                  echo "FOLDERS<<EOF_FOLDERS"
+                  printf '%s' "$folders"
+                  echo "EOF_FOLDERS"
+                } >> "$GITHUB_ENV"
 
         - name: Bump version
           run: |
-                if [ "$FOLDERS" != "" ]; then
-                  folders=$FOLDERS
-                  echo "Folders: $folders"
+                if [ -n "$FOLDERS" ]; then
+                  bumped=""
                   while read -r dir; do
-                    echo "Processing $dir"
-                    old_version=$(cat $dir/version.txt)
+                    [ -z "$dir" ] && continue
+                    old_version=$(cat "$dir/version.txt")
                     regex="([0-9]+)\.([0-9]+)\.([0-9]+)"
                     if [[ $old_version =~ $regex ]]; then
                         major="${BASH_REMATCH[1]}"
@@ -72,24 +104,29 @@ jobs:
                         patch="${BASH_REMATCH[3]}"
                         new_patch=$((patch + 1))
                         new_version="${major}.${minor}.${new_patch}"
-                        echo "Old version: $old_version"
-                        echo "New version: $new_version"
-                        echo $new_version > $dir/version.txt
+                        echo "$dir: $old_version -> $new_version"
+                        echo "$new_version" > "$dir/version.txt"
+                        bumped="$bumped$dir:$new_version, "
                     else
-                        echo "Invalid version format: $old_version"
+                        echo "Invalid version format in $dir/version.txt: $old_version"
                     fi
-                  done <<< "$folders"
+                  done <<< "$FOLDERS"
+                  echo "BUMPED=$bumped" >> "$GITHUB_ENV"
                 else
                   echo "No changes detected"
                 fi
 
         - name: Commit changes
           run: |
-            if [ "$FOLDERS" != "" ]; then
+            if [ -n "$FOLDERS" ]; then
               git config --global user.name "GitHub Actions"
               git config --global user.email "actions@github.com"
               git add .
-              git commit -m "Bump version to $new_version"
+              # [skip ci] stops GitHub Actions from triggering another run for
+              # this push - without it, this commit changes version.txt in the
+              # same folder that was just detected as changed, which would
+              # trigger this workflow again, bump again, and loop forever.
+              git commit -m "Bump version: ${BUMPED%, } [skip ci]"
               git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
             else
                 echo "No changes detected"
@@ -103,16 +140,16 @@ jobs:
   
         - name: Build and push Docker images
           run: |
-            if [ "$FOLDERS" != "" ]; then
-              folders=$FOLDERS
+            if [ -n "$FOLDERS" ]; then
               while read -r dir; do
+                [ -z "$dir" ] && continue
                 docker buildx build \
                   --platform linux/amd64,linux/arm64 \
                   --push \
-                  -t ${{ secrets.DOCKER_USERNAME }}/$(basename $dir):$(cat $(basename $dir)/version.txt) \
+                  -t ${{ secrets.DOCKER_USERNAME }}/$dir:$(cat $dir/version.txt) \
                   -f $dir/Dockerfile \
                   $dir
-              done <<< "$folders"
+              done <<< "$FOLDERS"
             else
               echo "No changes detected"
             fi
@@ -151,7 +188,7 @@ jobs:
               git config --global user.name "GitHub Actions"
               git config --global user.email "actions@github.com"
               git add .
-              git commit -m "Updating helm chart values.yaml"
+              git commit -m "Updating helm chart values.yaml [skip ci]"
               git push https://${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:stage
             else
               echo "No changes detected."
@@ -232,7 +269,7 @@ jobs:
 
         - name: Run integration tests
           run: |
-            echo "Running integration tests"
-            export AD_MANAGER_HOST="http://34.67.120.91:5000"
-            export AD_SERVER_HOST="http://34.31.128.115:8080"
-            echo "Integration tests passed"
+            pip install requests
+            AD_MANAGER_HOST="http://34.67.120.91:5000" \
+            AD_SERVER_HOST="http://34.31.128.115:8080" \
+              python -m unittest integration_test -v

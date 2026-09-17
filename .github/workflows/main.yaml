@@ -1,14 +1,9 @@
-name: Build and Push to Docker Hub
+name: Deploy to Production
 
 on:
     push:
         branches:
             - main
-
-env:
-    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-    DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
     deploy:
@@ -64,3 +59,20 @@ jobs:
               --set-string adpulse.secrets.supabaseUrl="${{ secrets.SUPABASE_URL }}" \
               --set-string adpulse.secrets.supabaseKey="${{ secrets.SUPABASE_KEY }}" \
               --set-string adpulse.secrets.gcpProjectId="${{ vars.GCP_PROJECT_ID_PROD }}"
+
+    integration-test:
+      needs: deploy
+      runs-on: ubuntu-latest
+      steps:
+        - name: sleep 2 minutes
+          run: sleep 120
+
+        - name: Checkout code
+          uses: actions/checkout@v2
+
+        - name: Run integration tests against prod
+          run: |
+            pip install requests
+            AD_MANAGER_HOST="http://34.121.57.232:5000" \
+            AD_SERVER_HOST="http://34.66.199.64:8080" \
+              python -m unittest integration_test -v

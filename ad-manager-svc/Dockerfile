@@ -16,5 +16,7 @@ USER appuser
 EXPOSE 5000
 
 # gunicorn, not the Flask development server: `flask run` is single-threaded
-# and explicitly not for production use.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "60", "run:app"]
+# and explicitly not for production use. --preload imports the app once in
+# the master before forking workers, so create_app()'s schema bootstrap
+# (config/db.py:init_db) runs once instead of racing across 4 workers.
+CMD ["gunicorn", "--preload", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "60", "run:app"]

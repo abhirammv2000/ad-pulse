@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 _Session = None
+_engine = None
 
 
 def _get_database_url():
@@ -15,6 +16,13 @@ def _get_database_url():
             "postgresql://user:password@host:5432/postgres"
         )
     return url
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_engine(_get_database_url(), pool_pre_ping=True)
+    return _engine
 
 
 def create_session():
@@ -29,9 +37,21 @@ def create_session():
     """
     global _Session
     if _Session is None:
-        engine = create_engine(_get_database_url(), pool_pre_ping=True)
-        _Session = sessionmaker(bind=engine, expire_on_commit=False)
+        _Session = sessionmaker(bind=_get_engine(), expire_on_commit=False)
     return _Session()
+
+
+def init_db():
+    """Create any tables that don't exist yet.
+
+    There is no migration tool in this project (no Alembic), so this is the
+    only thing that ever defines the schema. It only creates missing tables -
+    safe to call on every startup, including against a database that already
+    has data.
+    """
+    from app.models import Base  # noqa: F401 imports every model so it registers on Base.metadata
+
+    Base.metadata.create_all(_get_engine())
 
 
 @contextmanager
