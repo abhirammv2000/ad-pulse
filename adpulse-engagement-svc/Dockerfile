@@ -1,23 +1,16 @@
-# Use the official Go image as the base image
-FROM golang:latest
-
-# Set the working directory inside the container
+# Build stage
+FROM golang:1.25-alpine3.21 AS builder
 WORKDIR /app
-
-# Copy the Go module files
 COPY go.mod go.sum ./
-
-# Download and install the Go dependencies
 RUN go mod download
-
-# Copy the source code into the container
 COPY . .
-
-# Build the Go application
 RUN go build -o app
 
-# Expose the port on which the application will run
-EXPOSE 8080
+# Run stage - just the compiled binary, not the whole Go toolchain.
+FROM alpine:3.21
+WORKDIR /app
+COPY --from=builder /app/app .
+# No credentials are baked in: configuration comes from the environment at runtime.
 
-# Set the command to run the application
+EXPOSE 8081
 CMD ["./app"]

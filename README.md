@@ -125,3 +125,15 @@ cd ad-server-svc && go test ./...
 cd adpulse-engagement-svc && go test ./...
 cd ad-manager-frontend && npm test
 ```
+
+## History
+
+Ad Pulse started as a team project for CSCI 5828 (Software Engineering
+Methods) at CU Boulder. This repository is a solo rework done afterward:
+removing credentials that had been committed to the codebase, fixing the
+ad-serving and caching logic, rebuilding the frontend for a real deployment
+instead of the CRA dev server, adding the schema bootstrap and health checks
+the services were missing, wiring real tests into CI in place of stubs that
+never ran, and adding a local Docker Compose stack — including a Pub/Sub
+emulator — so the whole thing runs end to end on a laptop with no cloud
+project required.

@@ -80,14 +80,20 @@ services:
       - |
         set -e
         base=http://pubsub-emulator:8085/v1/projects/adpulse-local
-        curl -sf -X PUT "$$base/topics/click-service-topic"
-        curl -sf -X PUT "$$base/topics/csc-service-topic"
-        curl -sf -X PUT -H 'Content-Type: application/json' \
-          -d '{"topic":"projects/adpulse-local/topics/click-service-topic"}' \
-          "$$base/subscriptions/click-service-topic-sub"
-        curl -sf -X PUT -H 'Content-Type: application/json' \
-          -d '{"topic":"projects/adpulse-local/topics/csc-service-topic"}' \
-          "$$base/subscriptions/csc-service-topic-sub"
+        # Idempotent: restarting one dependent service re-runs this against an
+        # emulator that already has the topics/subs from the first run, and a
+        # PUT that already exists returns 409 - that's success here too, not
+        # a failure.
+        put() {
+          code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$@")
+          case "$$code" in 200|201|409) ;; *) echo "PUT $1 failed: HTTP $$code" >&2; exit 1 ;; esac
+        }
+        put "$$base/topics/click-service-topic"
+        put "$$base/topics/csc-service-topic"
+        put "$$base/subscriptions/click-service-topic-sub" -H 'Content-Type: application/json' \
+          -d '{"topic":"projects/adpulse-local/topics/click-service-topic"}'
+        put "$$base/subscriptions/csc-service-topic-sub" -H 'Content-Type: application/json' \
+          -d '{"topic":"projects/adpulse-local/topics/csc-service-topic"}'
 
   ad-manager-svc:
     build: ../../ad-manager-svc
