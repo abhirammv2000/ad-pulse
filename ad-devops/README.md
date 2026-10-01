@@ -2,14 +2,15 @@
 
 Deployment code for Ad Pulse.
 
-- `helm/ad-pulse/` — the Kubernetes chart for every service. Credentials are
+- `helm/ad-pulse/`: the Kubernetes chart for every service. Credentials are
   never stored in `values.yaml`; they're supplied to `templates/secrets.yaml`
   via a values file you don't commit or `--set-string` from CI secrets. See
   the top-level [README](../README.md#deploying) for the full list.
-- `deployments/docker-compose.yaml` — a Kafka + Zookeeper compose file. Nothing
-  in the current services talks to Kafka (the engagement pipeline runs on GCP
-  Pub/Sub — see the top-level README); this predates that and is unused.
-- `deployments/*.yaml` — older plain-manifest deployments, superseded by the
+- `deployments/docker-compose.yaml`: the full local stack (Postgres, Redis,
+  MongoDB, a Pub/Sub emulator and all six services). Kafka is not used
+  anywhere; the engagement pipeline runs on GCP Pub/Sub, see the top-level
+  README.
+- `deployments/*.yaml`: older plain-manifest deployments, superseded by the
   Helm chart; kept for reference.
 
 ## Quick deploy
