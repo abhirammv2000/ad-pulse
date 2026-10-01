@@ -32,7 +32,7 @@ ad-manager-frontend  →  ad-manager-svc  →  Postgres (campaigns/ads/creatives
 | [ad-refresh-cache-svc](ad-refresh-cache-svc/) | Python | Polls ad-manager-svc's cache endpoints on a timer so the Redis cache stays warm |
 | [adpulse-engagement-svc](adpulse-engagement-svc/) | Go / Gin | Receives click/render pings from the tracking URLs and publishes them to Pub/Sub |
 | [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Consumes those Pub/Sub messages and aggregates click/render counts per ad in MongoDB |
-| [ad-devops](ad-devops/) | Helm / Docker Compose | Kubernetes chart and local Kafka/Zookeeper compose file |
+| [ad-devops](ad-devops/) | Helm / Docker Compose | Kubernetes chart and the local Docker Compose stack |
 
 ## Running locally
 
@@ -99,7 +99,7 @@ should be a Workload Identity binding rather than a key file.
 ## Deploying
 
 The Helm chart in [ad-devops/helm/ad-pulse](ad-devops/helm/ad-pulse/) deploys
-every service. Credentials are never checked into `values.yaml` — they go into
+every service. Credentials never go into `values.yaml`. They go into
 the chart's `Secret` (see `templates/secrets.yaml`) via a values file you don't
 commit, or via `--set-string` from CI secrets:
 
@@ -111,7 +111,7 @@ helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
 
 `.github/workflows/build_push.yml` (branch `stage`) and `main.yaml` (branch
 `main`) build, tag and deploy every changed service, then run the upgrade
-above with secrets pulled from the repo's Actions secrets — add
+above with secrets pulled from the repo's Actions secrets. Add
 `DATABASE_URL_STAGE`/`_PROD`, `MONGODB_URI_STAGE`/`_PROD`,
 `REDIS_HOST_STAGE`/`_PROD` (+ `_PORT`/`_USERNAME`/`_PASSWORD`), `SUPABASE_URL`,
 `SUPABASE_KEY` there before relying on CI to deploy.
