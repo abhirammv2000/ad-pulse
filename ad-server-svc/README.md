@@ -9,7 +9,7 @@ returns a bid per matching impression along with click/render tracking URLs.
 ## Configuration
 
 Environment variables, or an `app.env` file in the working directory (see
-`app.env.example`) — either works, and the environment wins if both are set.
+`app.env.example`); either works, and the environment wins if both are set.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -35,11 +35,11 @@ go test -v -race -cover ./...
 
 ## Layout
 
-- `api/adserve.go` — the `/adserve` handler: collects eligible ads across every
+- `api/adserve.go`: the `/adserve` handler: collects eligible ads across every
   active campaign, then ranks and bids once.
-- `api/bids.go` — matches ranked ads against the impressions on offer and
+- `api/bids.go`: matches ranked ads against the impressions on offer and
   builds the OpenRTB-ish bid response.
-- `util/helper.go` — targeting rules (flight dates, ad unit, day, hour) and
+- `util/helper.go`: targeting rules (flight dates, ad unit, day, hour) and
   ranking.
-- `cache/` — the Redis-backed `Store` interface and the JSON shapes cached
+- `cache/`: the Redis-backed `Store` interface and the JSON shapes cached
   there (shared with what ad-manager-svc writes).

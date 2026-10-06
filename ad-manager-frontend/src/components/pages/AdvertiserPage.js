@@ -40,11 +40,9 @@ const AdvertiserPage = (props) => {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [advertiserType, setAdvertiserType] = useState('');
-  // Will delete after login page
+  // There is no login yet, so every record is attributed to Admin.
   const createdBy = 'Admin';
-  const createdAt = '2022-03-18T15:30:00';
   const updatedBy = 'Admin';
-  const updatedAt = '2022-03-18T15:30:00';
 
   const [advertisers, setAdvertisers] = useState([]);
 
@@ -57,7 +55,6 @@ const AdvertiserPage = (props) => {
   };
 
   const handleSave = () => {
-    // Process or save the input values here
     const data = {
         advertisername: advertiserName,
         industry: industry,
@@ -70,14 +67,10 @@ const AdvertiserPage = (props) => {
         },
         advertisertype: advertiserType,
         createdby: createdBy,
-        updatedby: updatedBy,
-        createdat: createdAt,
-        updatedat: updatedAt,
-        
+        updatedby: updatedBy
     };
     axios.post(`${baseUrl}/advertiser`, data)
-      .then(response => {
-        console.log('Data sent successfully:', response.data);
+      .then(() => {
         // Reset input fields
         setAdvertiserName('');
         setIndustry('');
@@ -92,7 +85,6 @@ const AdvertiserPage = (props) => {
       })
       .catch(error => {
         console.error('Error sending data:', error);
-        // Handle error appropriately
       });
   };
 

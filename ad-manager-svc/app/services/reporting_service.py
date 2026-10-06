@@ -1,6 +1,5 @@
 import os
 
-from flask import jsonify
 from pymongo import MongoClient
 
 _collection = None
@@ -19,13 +18,14 @@ def _reports():
 
 
 def get_report():
-    return jsonify(list(_reports().find({})))
+    return list(_reports().find({}))
 
 
 def get_report_by_ad_id(ad_id):
-    return jsonify(list(_reports().find({'_id': ad_id})))
+    return list(_reports().find({'_id': ad_id}))
 
 
 def delete_report_by_ad_id(ad_id):
+    """Delete the report for one ad. Returns False when there is none."""
     result = _reports().delete_one({'_id': ad_id})
     return result.deleted_count > 0

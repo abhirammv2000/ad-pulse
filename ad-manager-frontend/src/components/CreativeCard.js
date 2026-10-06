@@ -68,11 +68,9 @@ const CreativeCard = ({ open, handleClose, creatives, advertiserId, refreshCreat
       await axios.post(`${baseUrl}/creative`, data);
 
       refreshCreatives();
-      // Close the add dialog
       handleAddDialogClose();
     } catch (error) {
       console.error('Error adding creative:', error);
-      // Handle error appropriately
     }
   };
 

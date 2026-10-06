@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.enums.States import States
+from app.enums.states import States
 from app.models.ad import Ad
 from app.services import crud
 from config.db import session_scope

@@ -10,8 +10,6 @@ Deployment code for Ad Pulse.
   MongoDB, a Pub/Sub emulator and all six services). Kafka is not used
   anywhere; the engagement pipeline runs on GCP Pub/Sub, see the top-level
   README.
-- `deployments/*.yaml`: older plain-manifest deployments, superseded by the
-  Helm chart; kept for reference.
 
 ## Quick deploy
 

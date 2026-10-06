@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// serve HTTP requests for banking service.
+// Server answers ad requests over HTTP.
 type Server struct {
 	config util.Config
 	router *gin.Engine
@@ -28,7 +28,7 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 func (server *Server) setupRouter() {
 	router := gin.Default()
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"} // Change this to your allowed origins
+	config.AllowOrigins = []string{"*"} // open to every origin, restrict this before real use
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(config))
 	router.GET("/", server.healthCheck)

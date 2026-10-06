@@ -35,7 +35,7 @@ def get_reports_collection(client):
 def record_event(collection, ad_id, event_type):
     """Increment one counter for an ad, creating the row on first sight.
 
-    A single upsert with $inc/$setOnInsert keeps this atomic — the previous
+    A single upsert with $inc/$setOnInsert keeps this atomic; the previous
     read-then-write lost counts whenever two messages for the same ad were
     handled concurrently.
     """

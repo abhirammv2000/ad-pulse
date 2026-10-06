@@ -3,7 +3,7 @@
 #
 # Writes the runtime service URLs into the built bundle's config.js, so one
 # image can be promoted from stage to prod without rebuilding. It must not exec
-# anything — the image's own entrypoint starts nginx once these scripts finish.
+# anything; the image's own entrypoint starts nginx once these scripts finish.
 set -eu
 
 cat > /usr/share/nginx/html/config.js <<EOF

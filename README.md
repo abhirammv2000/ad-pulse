@@ -1,139 +1,88 @@
 # Ad Pulse
 
-Ad Pulse is a small ad-serving platform: an ad manager for creating publishers,
-advertisers, campaigns, ads and creatives; an ad server that picks and returns
-an ad for a given ad unit; and an engagement pipeline that records clicks and
-renders back into per-ad reports.
-
-## How it fits together
+An ad-serving platform built from six small services. An ad manager lets you create publishers, advertisers, campaigns, ads and creatives. An ad server picks the best ad for a page slot. An engagement pipeline counts clicks and renders for each ad.
 
 ```
-ad-manager-frontend  →  ad-manager-svc  →  Postgres (campaigns/ads/creatives/etc.)
-                              │
-                              ▼
-                        Redis (serving cache, refreshed by ad-refresh-cache-svc)
-                              │
-                              ▼
-                        ad-server-svc  →  picks & ranks an ad, returns a bid
-                              │
-                     click / render URLs
-                              ▼
-                adpulse-engagement-svc  →  Pub/Sub  →  adpulse-engagement-subscriber-svc
-                                                              │
-                                                              ▼
-                                                        MongoDB (reports)
+ad-manager-frontend -> ad-manager-svc -> Postgres
+                            |
+                            v
+                      Redis cache  <- ad-refresh-cache-svc (rebuilds it every 15 s)
+                            |
+                            v
+                      ad-server-svc  (filters, ranks, returns a bid with click and render URLs)
+                            |
+                   browser hits the URLs
+                            v
+              adpulse-engagement-svc -> Pub/Sub -> adpulse-engagement-subscriber-svc -> MongoDB
+                                                                                         |
+                                                              ad-manager-svc /reports <--+
 ```
 
-| Service | Language | Responsibility |
+| Service | Language | What it does |
 |---|---|---|
-| [ad-manager-svc](ad-manager-svc/) | Python / Flask | CRUD for publishers, advertisers, campaigns, ads, creatives; the serving cache refresh endpoints; `/reports` |
-| [ad-manager-frontend](ad-manager-frontend/) | React | Dashboard for the above, plus a demo page that requests and renders a live ad |
-| [ad-server-svc](ad-server-svc/) | Go / Gin | Given an ad unit + publisher, filters the cached ads by flight dates and targeting, ranks them, and returns a bid with tracking URLs |
-| [ad-refresh-cache-svc](ad-refresh-cache-svc/) | Python | Polls ad-manager-svc's cache endpoints on a timer so the Redis cache stays warm |
-| [adpulse-engagement-svc](adpulse-engagement-svc/) | Go / Gin | Receives click/render pings from the tracking URLs and publishes them to Pub/Sub |
-| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Consumes those Pub/Sub messages and aggregates click/render counts per ad in MongoDB |
-| [ad-devops](ad-devops/) | Helm / Docker Compose | Kubernetes chart and the local Docker Compose stack |
+| [ad-manager-svc](ad-manager-svc/) | Python, Flask | CRUD for the six entities, the cache refresh endpoints, and `/reports` |
+| [ad-manager-frontend](ad-manager-frontend/) | React | Dashboard for the above, plus a page that requests and shows a live ad |
+| [ad-server-svc](ad-server-svc/) | Go, Gin | Filters cached ads by flight dates and targeting, ranks them, returns bids |
+| [ad-refresh-cache-svc](ad-refresh-cache-svc/) | Python | Calls the manager's cache endpoints on a timer |
+| [adpulse-engagement-svc](adpulse-engagement-svc/) | Go, Gin | Takes click and render pings and publishes them to Pub/Sub |
+| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Reads Pub/Sub and keeps click and render counts per ad in MongoDB |
+| [ad-devops](ad-devops/) | Helm, Docker Compose | The Kubernetes chart and the local stack |
 
-## Running locally
-
-The fastest way to see the whole thing working end to end, including the
-click/render pipeline, is:
+## Run it
 
 ```
 docker compose -f ad-devops/deployments/docker-compose.yaml up --build
 ```
 
-This starts Postgres, Redis, MongoDB, a local Pub/Sub emulator (so the
-engagement pipeline works with no real GCP project), and all six services.
-Frontend at http://localhost:3000, ad-manager-svc at :5000, ad-server-svc at
-:8080. With it running, the root `integration_test.py` exercises the full
-create → cache → serve → click/render → report flow:
+This starts Postgres, Redis, MongoDB, a local Pub/Sub emulator and all six services, so nothing needs a cloud account. The frontend is on http://localhost:3000, the manager on :5000 and the ad server on :8080.
+
+With it running, `integration_test.py` walks the whole flow (create, cache, serve, click, render, report):
 
 ```
 AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
   python -m unittest integration_test -v
 ```
 
-To run a single service against your own infra instead, each service reads
-its configuration from environment variables, nothing is hardcoded, so you
-point it at your own Postgres, Redis, MongoDB and GCP project.
+Each service reads its settings from environment variables, and its own README lists them.
 
-**ad-manager-svc**
-```
-cd ad-manager-svc
-pip install -r requirements.txt
-export DATABASE_URL=postgresql://user:pass@localhost:5432/adpulse
-export MONGODB_URI=mongodb://localhost:27017
-export REDIS_HOST=localhost
-python run.py   # http://localhost:5000, health check at /health
-```
+## Tests
 
-**ad-server-svc**
 ```
-cd ad-server-svc
-cp app.env.example app.env   # fill in REDIS_HOST etc., or export the same vars
-make server                  # http://localhost:8080
+cd ad-manager-svc && python -m unittest discover -s app/test -p "*_test.py"
+cd adpulse-engagement-subscriber-svc && python -m unittest discover -s tests -p "*_test.py"
+cd ad-refresh-cache-svc && python -m unittest discover -s tests -p "*_test.py"
+cd ad-server-svc && go test ./...
+cd adpulse-engagement-svc && go test ./...
+cd ad-manager-frontend && npm test -- --watchAll=false
+helm lint ad-devops/helm/ad-pulse
 ```
 
-**ad-manager-frontend**
-```
-cd ad-manager-frontend
-npm ci
-REACT_APP_API_BASE_URL=http://localhost:5000 \
-REACT_APP_API_AD_SERVER_URL=http://localhost:8080 \
-npm start                    # http://localhost:3000
-```
-The production Docker image is a static build served by nginx; the same two
-variables are baked into `public/config.js` by the container's entrypoint at
-startup, so one built image can be promoted from stage to prod without a
-rebuild.
-
-**adpulse-engagement-svc** and **adpulse-engagement-subscriber-svc** need a
-GCP project with a Pub/Sub topic/subscription pair for clicks and one for
-renders (see `GCP_PROJECT_ID`, `CLICK_TOPIC_ID`/`CSC_TOPIC_ID` and
-`CLICK_SUBSCRIPTION_ID`/`CSC_SUBSCRIPTION_ID`). Locally, authenticate with
-`gcloud auth application-default login` or point
-`GOOGLE_APPLICATION_CREDENTIALS` at a service account key; in the cluster this
-should be a Workload Identity binding rather than a key file.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request. The Python tests mock the database, Redis and Pub/Sub, so they need none of them.
 
 ## Deploying
 
-The Helm chart in [ad-devops/helm/ad-pulse](ad-devops/helm/ad-pulse/) deploys
-every service. Credentials never go into `values.yaml`. They go into
-the chart's `Secret` (see `templates/secrets.yaml`) via a values file you don't
-commit, or via `--set-string` from CI secrets:
+The Helm chart in [ad-devops/helm/ad-pulse](ad-devops/helm/ad-pulse/) deploys every service. Credentials never go in `values.yaml`. Pass them from a values file that isn't committed, or with `--set-string` from CI secrets:
 
 ```
 helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
-  --namespace adpulse \
-  -f my-values-secrets.yaml   # databaseUrl, mongodbUri, redis*, supabase*, gcpProjectId
+  --namespace adpulse -f my-values-secrets.yaml
 ```
 
-`.github/workflows/build_push.yml` (branch `stage`) and `main.yaml` (branch
-`main`) build, tag and deploy every changed service, then run the upgrade
-above with secrets pulled from the repo's Actions secrets. Add
-`DATABASE_URL_STAGE`/`_PROD`, `MONGODB_URI_STAGE`/`_PROD`,
-`REDIS_HOST_STAGE`/`_PROD` (+ `_PORT`/`_USERNAME`/`_PASSWORD`), `SUPABASE_URL`,
-`SUPABASE_KEY` there before relying on CI to deploy.
+The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`).
 
-## Contributing
+## Known gaps
 
-Run each service's tests before opening a PR:
-```
-cd ad-manager-svc && python -m unittest discover -s app/test -p "*_test.py"
-cd ad-server-svc && go test ./...
-cd adpulse-engagement-svc && go test ./...
-cd ad-manager-frontend && npm test
-```
+I would fix these next, roughly in this order:
+
+- **Click and render URLs are not signed.** Anyone can forge an event for any ad by building the `iid` value. The ad server should sign it and the engagement service should check the signature.
+- **The manager API has no authentication,** and CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
+- **The ad server asks the manager twice on every ad request** (publisher, then ad unit), with no timeout and no caching.
+- **The two Go containers run as root.** The Python ones don't.
+- **There are no database migrations.** The manager creates missing tables on startup and never alters existing ones.
+- **The six entity services repeat the same create and update code.**
+- **Names are lowercase and run together** (`adunitid`, `campaignstate`) in the database and the JSON API. The ad server and dashboard depend on them, so they would need a versioned change.
+- **The deploy workflows hard-code the services' external IPs.**
 
 ## History
 
-Ad Pulse started as a team project for CSCI 5828 (Software Engineering
-Methods) at CU Boulder. This repository is a solo rework done afterward:
-removing credentials that had been committed to the codebase, fixing the
-ad-serving and caching logic, rebuilding the frontend for a real deployment
-instead of the CRA dev server, adding the schema bootstrap and health checks
-the services were missing, wiring real tests into CI in place of stubs that
-never ran, and adding a local Docker Compose stack, including a Pub/Sub
-emulator, so the whole thing runs end to end on a laptop with no cloud
-project required.
+Ad Pulse began as a team project for CSCI 5828 (Software Engineering Methods) at CU Boulder. This repository is a later rework. It removed the credentials that were committed, fixed the ad-serving and caching logic, rebuilt the frontend image for real deployment, added health checks and a schema bootstrap, wired real tests into CI, and added a Docker Compose stack with a Pub/Sub emulator so the whole thing runs on a laptop.

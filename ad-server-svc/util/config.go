@@ -32,7 +32,7 @@ var defaults = map[string]string{
 }
 
 // LoadConfig reads configuration from app.env in path, falling back to
-// environment variables. The file is optional — in Kubernetes the whole config
+// environment variables. The file is optional; in Kubernetes the whole config
 // arrives through the environment.
 func LoadConfig(path string) (config Config, err error) {
 	viper.AddConfigPath(path)

@@ -34,7 +34,7 @@ ad_serve_payload = {
         }
 
 # The window every flight date (campaign and ad) is created in - wide enough
-# that "now", whenever the test actually runs, always falls inside it.
+# that "now", whenever the test runs, always falls inside it.
 FLIGHT_START = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
 FLIGHT_END = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%S")
 
