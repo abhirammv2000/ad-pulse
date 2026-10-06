@@ -1,0 +1,6 @@
+# Normalize line endings in the repo. Scripts and Dockerfiles must stay LF on
+# every checkout, because they run inside Linux containers. A Windows checkout
+# that turned them into CRLF broke the frontend container.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
