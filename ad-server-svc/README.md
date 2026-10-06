@@ -19,6 +19,7 @@ Environment variables, or an `app.env` file in the working directory (see
 | `REDIS_PORT` | `6379` | |
 | `REDIS_USERNAME`, `REDIS_PASSWORD` | (empty) | |
 | `CLICK_URL`, `RENDER_URL` | `http://localhost:8081/engagement/...` | adpulse-engagement-svc endpoints embedded in every bid |
+| `TRACKING_SECRET` | (empty) | Signs the click and render URLs with an HMAC. Use the same value as adpulse-engagement-svc. Empty means unsigned URLs |
 
 ## Running
 
@@ -32,6 +33,16 @@ make server                  # go run main.go
 ```
 go test -v -race -cover ./...
 ```
+
+## Notes
+
+- Every request checks the publisher and the ad unit with ad-manager-svc. Each
+  check has a 3 second timeout. If the manager can't be reached the answer is
+  a 502.
+- If the cache has not been filled yet there is nothing to serve, so the
+  answer is 204 and not an error.
+- Day and hour targeting use UTC, like the flight dates.
+- Errors from Redis are logged. The caller only sees "internal error".
 
 ## Layout
 

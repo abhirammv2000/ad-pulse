@@ -51,13 +51,13 @@ Each service reads its settings from environment variables, and its own README l
 cd ad-manager-svc && python -m unittest discover -s app/test -p "*_test.py"
 cd adpulse-engagement-subscriber-svc && python -m unittest discover -s tests -p "*_test.py"
 cd ad-refresh-cache-svc && python -m unittest discover -s tests -p "*_test.py"
-cd ad-server-svc && go test ./...
-cd adpulse-engagement-svc && go test ./...
+cd ad-server-svc && go vet ./... && go test -race ./...
+cd adpulse-engagement-svc && go vet ./... && go test -race ./...
 cd ad-manager-frontend && npm test -- --watchAll=false
 helm lint ad-devops/helm/ad-pulse
 ```
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request. The Python tests mock the database, Redis and Pub/Sub, so they need none of them.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request. The unit tests mock the database, Redis and Pub/Sub, so they need none of them. The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs turned on.
 
 ## Deploying
 
@@ -74,10 +74,9 @@ The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`.
 
 I would fix these next, roughly in this order:
 
-- **Click and render URLs are not signed.** Anyone can forge an event for any ad by building the `iid` value. The ad server should sign it and the engagement service should check the signature.
+- **Click and render URLs can be replayed.** They are signed when `TRACKING_SECRET` is set (the compose stack sets it), so nobody can make up an event for an ad. A real URL can still be hit many times, and each hit counts. Without the secret the URLs are not checked at all.
 - **The manager API has no authentication,** and CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
-- **The ad server asks the manager twice on every ad request** (publisher, then ad unit), with no timeout and no caching.
-- **The two Go containers run as root.** The Python ones don't.
+- **The ad server asks the manager twice on every ad request** (publisher, then ad unit). Each call has a 3 second timeout, but nothing is cached.
 - **There are no database migrations.** The manager creates missing tables on startup and never alters existing ones.
 - **The six entity services repeat the same create and update code.**
 - **Names are lowercase and run together** (`adunitid`, `campaignstate`) in the database and the JSON API. The ad server and dashboard depend on them, so they would need a versioned change.

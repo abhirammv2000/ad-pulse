@@ -45,7 +45,7 @@ func TestEngagementHandlerPublishesDecodedIID(t *testing.T) {
 	publisher := &fakePublisher{}
 
 	recorder := serve(
-		engagementHandler(publisher, "click-topic"),
+		engagementHandler(publisher, "click-topic", ""),
 		"?iid="+base64.StdEncoding.EncodeToString([]byte(iid)),
 	)
 
@@ -70,7 +70,7 @@ func TestEngagementHandlerRejectsBadInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			publisher := &fakePublisher{}
-			recorder := serve(engagementHandler(publisher, "click-topic"), tt.query)
+			recorder := serve(engagementHandler(publisher, "click-topic", ""), tt.query)
 
 			if recorder.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
@@ -86,7 +86,7 @@ func TestEngagementHandlerReportsPublishFailure(t *testing.T) {
 	publisher := &fakePublisher{err: errors.New("pubsub unavailable")}
 
 	recorder := serve(
-		engagementHandler(publisher, "click-topic"),
+		engagementHandler(publisher, "click-topic", ""),
 		"?iid="+base64.StdEncoding.EncodeToString([]byte(`{"adid":"AD123"}`)),
 	)
 

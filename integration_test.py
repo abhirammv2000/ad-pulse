@@ -224,6 +224,11 @@ class TestAPI(unittest.TestCase):
         render_response = requests.get(renderURL)
         self.assertEqual(render_response.status_code, 200, f"Expected status code 200, but got {render_response.status_code}")
 
+        # When the URLs are signed, the same URL without its signature must be refused.
+        if 'sig=' in clickURL:
+            unsigned_response = requests.get(clickURL.split('&sig=')[0])
+            self.assertEqual(unsigned_response.status_code, 403, f"Expected an unsigned click to be refused, but got {unsigned_response.status_code}")
+
         time.sleep(5)
         report_response = requests.get(self.ad_manager_host + '/reports/' + ad_id)
         self.assertEqual(report_response.status_code, 200, f"Expected status code 200, but got {report_response.status_code}")

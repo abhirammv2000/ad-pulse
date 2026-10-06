@@ -15,6 +15,7 @@ type Config struct {
 	RedisPassword    string `mapstructure:"REDIS_PASSWORD"`
 	ClickUrl         string `mapstructure:"CLICK_URL"`
 	RenderUrl        string `mapstructure:"RENDER_URL"`
+	TrackingSecret   string `mapstructure:"TRACKING_SECRET"`
 }
 
 // defaults doubles as the list of keys viper will read from the environment:
@@ -29,6 +30,7 @@ var defaults = map[string]string{
 	"REDIS_PASSWORD":     "",
 	"CLICK_URL":          "http://localhost:8081/engagement/clk",
 	"RENDER_URL":         "http://localhost:8081/engagement/csc",
+	"TRACKING_SECRET":    "",
 }
 
 // LoadConfig reads configuration from app.env in path, falling back to

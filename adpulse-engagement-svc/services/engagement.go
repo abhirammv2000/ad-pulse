@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,9 +15,19 @@ import (
 // The ad server hands the browser a URL carrying `iid`: a base64-encoded JSON
 // blob identifying the ad, creative, campaign and advertiser. We validate it and
 // forward it to the Pub/Sub topic that the subscriber service aggregates from.
-func engagementHandler(publisher Publisher, topic string) gin.HandlerFunc {
+//
+// When secret is not empty the URL must also carry a `sig` parameter, the HMAC
+// of the iid text, or the request is refused. With an empty secret nothing is
+// checked, which is only fine for local development.
+func engagementHandler(publisher Publisher, topic, secret string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		decoded, err := base64.StdEncoding.DecodeString(ctx.Query("iid"))
+		encodedIID := ctx.Query("iid")
+		if secret != "" && !validSignature(secret, encodedIID, ctx.Query("sig")) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "invalid signature"})
+			return
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(encodedIID)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "iid is not valid base64"})
 			return
@@ -42,10 +53,10 @@ func engagementHandler(publisher Publisher, topic string) gin.HandlerFunc {
 
 // ClickServiceHandler records a click on a served ad.
 func ClickServiceHandler(publisher Publisher) gin.HandlerFunc {
-	return engagementHandler(publisher, topicID("CLICK_TOPIC_ID", "click-service-topic"))
+	return engagementHandler(publisher, topicID("CLICK_TOPIC_ID", "click-service-topic"), os.Getenv("TRACKING_SECRET"))
 }
 
 // CSCServiceHandler records a creative-successfully-called (render) event.
 func CSCServiceHandler(publisher Publisher) gin.HandlerFunc {
-	return engagementHandler(publisher, topicID("CSC_TOPIC_ID", "csc-service-topic"))
+	return engagementHandler(publisher, topicID("CSC_TOPIC_ID", "csc-service-topic"), os.Getenv("TRACKING_SECRET"))
 }

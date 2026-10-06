@@ -63,6 +63,7 @@ jobs:
               --set-string adpulse.secrets.redisPassword="${{ secrets.REDIS_PASSWORD_PROD }}" \
               --set-string adpulse.secrets.supabaseUrl="${{ secrets.SUPABASE_URL }}" \
               --set-string adpulse.secrets.supabaseKey="${{ secrets.SUPABASE_KEY }}" \
+              --set-string adpulse.secrets.trackingSecret="${{ secrets.TRACKING_SECRET }}" \
               --set-string adpulse.secrets.gcpProjectId="${{ vars.GCP_PROJECT_ID_PROD }}"
 
     integration-test:
