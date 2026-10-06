@@ -5,7 +5,7 @@
 adpulse:
   fullname: "adpulse"
   # Real credentials belong in a gitignored values-secrets.yaml passed with
-  # `-f`, or as --set-string flags sourced from CI secrets — never here.
+  # `-f`, or as --set-string flags sourced from CI secrets, never here.
   # See templates/secrets.yaml.
   secrets:
     databaseUrl: ""

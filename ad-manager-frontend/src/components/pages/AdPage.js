@@ -31,8 +31,6 @@ const AdPage = () => {
 
   const baseUrl = API_BASE_URL
   const { AdvId,CampId } = useParams();
-//   console.log("ad id",AdvId);
-//   console.log("camp id",CampId);
 
   const [adName, setAdName] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -107,8 +105,7 @@ const AdPage = () => {
     }
     
     axios.post(`${baseUrl}/ad`, data)
-      .then(response => {
-        console.log('Data sent successfully:', response.data);
+      .then(() => {
         setAdName('');
         setStartDate('');
         setEndDate('');
@@ -128,7 +125,6 @@ const AdPage = () => {
       })
       .catch(error => {
         console.error('Error sending data:', error);
-        // Handle error appropriately
       });
   };
 
@@ -171,8 +167,7 @@ const AdPage = () => {
   const handleStateChange = (adId, currentState) => {
     const nextState = currentState === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     axios.patch(`${baseUrl}/ad?ad_id=${adId}&state=${nextState}`)
-      .then(response => {
-        console.log('State changed successfully:', response.data);
+      .then(() => {
         fetchAds();
       })
       .catch(error => {

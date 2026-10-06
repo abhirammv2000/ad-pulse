@@ -1,4 +1,3 @@
-// HomePage.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import adServeRequestBody from '../../requests/adServeRequest';
@@ -40,7 +39,7 @@ function AdPopUp({ adUnitId, width, height, position, publisherId = DEMO_PUBLISH
     const fetchAdImage = async () => {
       try {
         // adServeRequestBody is a shared module object, so copy it before
-        // setting this slot's dimensions — mutating it would let whichever
+        // setting this slot's dimensions; mutating it would let whichever
         // AdPopUp rendered last decide the size for all of them.
         const requestBody = {
           ...adServeRequestBody,

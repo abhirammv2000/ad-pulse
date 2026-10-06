@@ -20,11 +20,11 @@ func main() {
 	router := gin.Default()
 
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"*"} // Change this to your allowed origins
+	corsConfig.AllowOrigins = []string{"*"} // open to every origin, restrict this before real use
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(corsConfig))
 
-	// define router group
+	// click and render pings
 	engagementGroup := router.Group("/engagement")
 	{
 		engagementGroup.GET("/clk", services.ClickServiceHandler(publisher))

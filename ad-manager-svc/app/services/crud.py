@@ -6,18 +6,24 @@ the model and column names.
 """
 
 import time
+import uuid
 from datetime import datetime
 
 from config.db import session_scope
 
 
 def generate_id(prefix):
-    """Build a sortable id: prefix + UTC-local timestamp to the millisecond."""
+    """Build an id like prefix + local time to the millisecond + 4 random hex digits.
+
+    The time part keeps ids roughly sorted. The random part keeps two rows
+    created in the same millisecond from getting the same primary key.
+    """
     now = time.time()
-    return "{}{}{:03d}".format(
+    return "{}{}{:03d}{}".format(
         prefix,
         time.strftime("%Y%m%d%H%M%S", time.localtime(now)),
         int(now * 1000) % 1000,
+        uuid.uuid4().hex[:4],
     )
 
 

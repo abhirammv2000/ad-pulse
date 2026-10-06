@@ -34,7 +34,7 @@ const PublisherPage = () => {
   const [publisherDomain, setPublisherDomain] = useState('');
   const [preferenceLanguage, setPreferenceLanguage] = useState('English');
   const [preferenceTimezone, setPreferenceTimezone] = useState('UTC');
-  // Will delete after login page
+  // There is no login yet, so every record is attributed to Admin.
   const createdBy = 'Admin';
   const updatedBy = 'Admin';
 
@@ -49,7 +49,6 @@ const PublisherPage = () => {
   };
 
   const handleSave = () => {
-    // Process or save the input values here
     const data = {
       publishername: publisherName,
       contactinfo: {
@@ -65,8 +64,7 @@ const PublisherPage = () => {
       }
     };
     axios.post(`${baseUrl}/publisher`, data)
-      .then(response => {
-        console.log('Data sent successfully:', response.data);
+      .then(() => {
         // Reset input fields
         setPublisherName('');
         setContactEmail('');
@@ -79,7 +77,6 @@ const PublisherPage = () => {
       })
       .catch(error => {
         console.error('Error sending data:', error);
-        // Handle error appropriately
       });
   };
 

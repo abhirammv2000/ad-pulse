@@ -1,7 +1,7 @@
 # ad-manager-frontend
 
-React dashboard for ad-manager-svc — managing publishers, ad units,
-advertisers, campaigns, ads and creatives — plus a demo homepage that requests
+React dashboard for ad-manager-svc: managing publishers, ad units,
+advertisers, campaigns, ads and creatives, plus a demo homepage that requests
 a live ad from ad-server-svc and renders it.
 
 ## Configuration
@@ -17,7 +17,7 @@ Two service URLs, resolved in `src/config.js`:
 shell environment at build time). The production image is different: Create
 React App inlines `REACT_APP_*` at *build* time, which would mean rebuilding
 the image for every environment, so the built bundle instead reads
-`window.__ADPULSE_CONFIG__` — written to `public/config.js` by the container's
+`window.__ADPULSE_CONFIG__`, written to `public/config.js` by the container's
 entrypoint (`docker-entrypoint.sh`) from its own environment at container
 startup. One image can be promoted from stage to prod unmodified.
 

@@ -23,7 +23,7 @@ type pubSubPublisher struct {
 
 // NewPubSubPublisher builds a single long-lived Pub/Sub client.
 //
-// Credentials come from Application Default Credentials — on GKE that is the
+// Credentials come from Application Default Credentials; on GKE that is the
 // workload identity of the pod. Set GOOGLE_APPLICATION_CREDENTIALS to a key
 // file path only for local development.
 func NewPubSubPublisher() (Publisher, error) {

@@ -10,7 +10,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Run stage — nginx serving the static build. The old image shipped the Create
+# Run stage: nginx serving the static build. The old image shipped the Create
 # React App dev server, which is why the deployment asked for 4Gi and 3 CPUs.
 FROM nginx:1.27-alpine
 COPY --from=builder /app/build /usr/share/nginx/html
