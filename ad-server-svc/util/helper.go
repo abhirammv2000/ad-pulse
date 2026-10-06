@@ -10,6 +10,10 @@ import (
 // timeLayout is the format the ad manager writes dates in.
 const timeLayout = "2006-01-02T15:04:05"
 
+// clock is where the current time comes from. Tests replace it. Flight dates and
+// the day and hour targeting rules are all read in UTC.
+var clock = time.Now
+
 // dayNumber maps Go weekday names onto the 1-based day numbers used in
 // targeting rules (Sunday = 1).
 var dayNumber = map[time.Weekday]int{
@@ -23,8 +27,8 @@ var dayNumber = map[time.Weekday]int{
 }
 
 func WithinDuration(startDate, endDate time.Time) bool {
-	now := time.Now().UTC()
-	return startDate.Before(now) && endDate.After(now)
+	current := clock().UTC()
+	return startDate.Before(current) && endDate.After(current)
 }
 
 func GetTime(strTime string) (time.Time, error) {
@@ -61,14 +65,14 @@ func adInDayTargeting(ad cache.Ad) bool {
 	if ad.TargetingInfo == nil || len(ad.TargetingInfo.DayTargeting.Values) == 0 {
 		return true
 	}
-	return contains(ad.TargetingInfo.DayTargeting.Values, dayNumber[time.Now().Weekday()])
+	return contains(ad.TargetingInfo.DayTargeting.Values, dayNumber[clock().UTC().Weekday()])
 }
 
 func adInTimeTargeting(ad cache.Ad) bool {
 	if ad.TargetingInfo == nil || len(ad.TargetingInfo.TimeTargeting.Values) == 0 {
 		return true
 	}
-	return contains(ad.TargetingInfo.TimeTargeting.Values, time.Now().Hour())
+	return contains(ad.TargetingInfo.TimeTargeting.Values, clock().UTC().Hour())
 }
 
 // IsAdAvailable reports whether the ad passes every targeting rule for this request.

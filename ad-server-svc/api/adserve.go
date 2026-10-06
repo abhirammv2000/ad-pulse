@@ -4,8 +4,10 @@ import (
 	"adserver/cache"
 	"adserver/util"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -29,22 +31,25 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
-	if ok := server.entityExists(ctx, "/publisher/publisherid/"+reqParams.PublisherId, "publisher"); !ok {
+	if ok := server.entityExists(ctx, "/publisher/publisherid/"+url.PathEscape(reqParams.PublisherId), "publisher"); !ok {
 		return
 	}
-	if ok := server.entityExists(ctx, "/adunit/ad_unit_id/"+reqParams.AdUnitId, "ad unit"); !ok {
+	if ok := server.entityExists(ctx, "/adunit/ad_unit_id/"+url.PathEscape(reqParams.AdUnitId), "ad unit"); !ok {
 		return
 	}
 
 	campaigns, err := server.store.Get("campaigns")
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+	if errors.Is(err, cache.ErrNotFound) {
+		// The cache has not been filled yet, so there is nothing to serve.
+		campaigns = "[]"
+	} else if err != nil {
+		internalError(ctx, err)
 		return
 	}
 
 	var campaignList []cache.Campaign
 	if err := json.Unmarshal([]byte(campaigns), &campaignList); err != nil {
-		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		internalError(ctx, err)
 		return
 	}
 
@@ -69,7 +74,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 
 		ads, err := server.store.HGetAll(campaign.CampaignID)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, errResponse(err))
+			internalError(ctx, err)
 			return
 		}
 
@@ -113,9 +118,15 @@ func (server *Server) adserve(ctx *gin.Context) {
 // entityExists checks the ad manager for a publisher or ad unit, writing the
 // error response itself and reporting whether the caller should continue.
 func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
-	resp, err := http.Get(server.config.AdManagerAddress + path)
+	req, err := http.NewRequestWithContext(ctx.Request.Context(), http.MethodGet, server.config.AdManagerAddress+path, nil)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errResponse(err))
+		internalError(ctx, err)
+		return false
+	}
+	resp, err := server.httpClient.Do(req)
+	if err != nil {
+		log.Printf("cannot check the %s with the ad manager: %v", label, err)
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
 		return false
 	}
 	defer resp.Body.Close()

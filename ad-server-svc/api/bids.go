@@ -2,6 +2,7 @@ package api
 
 import (
 	"adserver/cache"
+	"adserver/util"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -92,7 +93,14 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 		return cache.Bid{}, fmt.Errorf("encoding creative markup for ad %s: %w", ad.AdID, err)
 	}
 
+	// With a tracking secret the URLs carry a signature, so the engagement
+	// service can tell a URL we issued from one somebody made up.
 	encodedIID := base64.StdEncoding.EncodeToString(iid)
+	tracking := "?iid=" + encodedIID
+	if server.config.TrackingSecret != "" {
+		tracking += "&sig=" + util.SignIID(server.config.TrackingSecret, encodedIID)
+	}
+
 	return cache.Bid{
 		Id:    uuid.New().String(),
 		Impid: impID,
@@ -101,12 +109,12 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 		Cid:   ad.CampaignID,
 		Crid:  ad.CreativeID,
 		Ext: cache.Ext{
-			ClickUrl:   server.config.ClickUrl + "?iid=" + encodedIID,
+			ClickUrl:   server.config.ClickUrl + tracking,
 			AdType:     "NATIVE",
 			Kslotid:    bidParams.RequestBody.ID + "_" + impID,
 			AdEndTime:  ad.EndDate,
 			LandingUrl: ad.LandingURL,
-			RenderUrl:  server.config.RenderUrl + "?iid=" + encodedIID,
+			RenderUrl:  server.config.RenderUrl + tracking,
 		},
 	}, nil
 }

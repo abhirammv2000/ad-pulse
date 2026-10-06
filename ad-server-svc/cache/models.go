@@ -1,8 +1,8 @@
 package cache
 
 type RequestParams struct {
-	AdUnitId    string `form:"adunit_id"`
-	PublisherId string `form:"publisher_id"`
+	AdUnitId    string `form:"adunit_id" binding:"required"`
+	PublisherId string `form:"publisher_id" binding:"required"`
 }
 
 type Img struct {
