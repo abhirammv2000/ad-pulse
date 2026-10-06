@@ -15,6 +15,11 @@ def _get_database_url():
             "DATABASE_URL is not set. Point it at the Postgres instance, e.g. "
             "postgresql://user:password@host:5432/postgres"
         )
+    # This service installs psycopg2, but SQLAlchemy 2.1 made psycopg 3 the
+    # default driver for a plain postgresql:// url, which crashes at startup.
+    # Naming the driver works with every SQLAlchemy version.
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg2://" + url[len("postgresql://"):]
     return url
 
 
