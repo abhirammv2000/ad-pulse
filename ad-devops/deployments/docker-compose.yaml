@@ -128,6 +128,7 @@ services:
       REDIS_HOST: redis
       CLICK_URL: http://localhost:8081/engagement/clk
       RENDER_URL: http://localhost:8081/engagement/csc
+      TRACKING_SECRET: local-dev-tracking-secret
     depends_on:
       - ad-manager-svc
       - redis
@@ -138,6 +139,7 @@ services:
       - "8081:8081"
     environment:
       SERVER_ADDRESS: :8081
+      TRACKING_SECRET: local-dev-tracking-secret
       GCP_PROJECT_ID: adpulse-local
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
     depends_on:

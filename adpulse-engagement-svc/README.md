@@ -15,6 +15,17 @@ topic for adpulse-engagement-subscriber-svc to aggregate.
 | `CLICK_TOPIC_ID` | `click-service-topic` | Pub/Sub topic clicks are published to |
 | `CSC_TOPIC_ID` | `csc-service-topic` | Pub/Sub topic renders are published to |
 | `SERVER_ADDRESS` | `:8081` | Address to listen on |
+| `TRACKING_SECRET` | none | When set, every click and render URL must carry a valid `sig`, or the answer is 403. Use the same value as ad-server-svc. When empty, URLs are not checked and the service logs a warning at startup |
+
+## Signed URLs
+
+ad-server-svc adds `&sig=<hex>` to each URL, where the signature is the
+HMAC-SHA256 of the `iid` text with `TRACKING_SECRET`. This service recomputes
+it and compares in constant time. Without that, anyone could invent an `iid`
+and add clicks to any ad.
+
+A signature does not stop someone replaying a real URL, so repeated clicks are
+still counted.
 
 ## Running
 

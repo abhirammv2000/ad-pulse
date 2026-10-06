@@ -17,6 +17,10 @@ func main() {
 	}
 	defer publisher.Close()
 
+	if os.Getenv("TRACKING_SECRET") == "" {
+		log.Println("TRACKING_SECRET is not set, so click and render URLs are not checked")
+	}
+
 	router := gin.Default()
 
 	corsConfig := cors.DefaultConfig()

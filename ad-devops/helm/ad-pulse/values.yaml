@@ -17,6 +17,9 @@ adpulse:
     supabaseUrl: ""
     supabaseKey: ""
     gcpProjectId: ""
+    # Signs click and render URLs. ad-server-svc and adpulse-engagement-svc
+    # must get the same value. Empty means unsigned URLs, fine for local use only.
+    trackingSecret: ""
   namespace:
     name: "adpulse"
     labels:

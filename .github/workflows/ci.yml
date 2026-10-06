@@ -67,7 +67,8 @@ jobs:
         with:
           go-version-file: ${{ matrix.service }}/go.mod
 
-      - run: go test ./...
+      - run: go vet ./...
+      - run: go test -race ./...
 
   frontend:
     name: Frontend
