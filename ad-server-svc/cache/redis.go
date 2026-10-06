@@ -3,10 +3,15 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
+
+// ErrNotFound means the key is not in the cache. It is what a cold cache
+// looks like before the first refresh.
+var ErrNotFound = errors.New("key not found in cache")
 
 type Store interface {
 	Get(key string) (string, error)
@@ -24,7 +29,11 @@ func NewRedisStore(rdb *redis.Client) Store {
 }
 
 func (store *RedisStore) Get(key string) (string, error) {
-	return store.rdb.Get(context.Background(), key).Result()
+	value, err := store.rdb.Get(context.Background(), key).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", ErrNotFound
+	}
+	return value, err
 }
 
 func (store *RedisStore) Set(key string, value string) error {
