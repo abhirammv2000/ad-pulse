@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
@@ -18,6 +19,9 @@ type Publisher interface {
 
 type pubSubPublisher struct {
 	client *pubsub.Client
+
+	// Handlers call Publish from many goroutines, so the topic map needs the lock.
+	mu     sync.Mutex
 	topics map[string]*pubsub.Topic
 }
 
@@ -45,14 +49,21 @@ func NewPubSubPublisher() (Publisher, error) {
 	return &pubSubPublisher{client: client, topics: make(map[string]*pubsub.Topic)}, nil
 }
 
-func (p *pubSubPublisher) Publish(ctx context.Context, topicID string, payload []byte) (string, error) {
+// topicFor returns the topic handle for an id, creating it on first use.
+func (p *pubSubPublisher) topicFor(topicID string) *pubsub.Topic {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	topic, ok := p.topics[topicID]
 	if !ok {
 		topic = p.client.Topic(topicID)
 		p.topics[topicID] = topic
 	}
+	return topic
+}
 
-	result := topic.Publish(ctx, &pubsub.Message{
+func (p *pubSubPublisher) Publish(ctx context.Context, topicID string, payload []byte) (string, error) {
+	result := p.topicFor(topicID).Publish(ctx, &pubsub.Message{
 		Data:       payload,
 		Attributes: map[string]string{"origin": "adpulse-engagement-svc"},
 	})
@@ -60,6 +71,9 @@ func (p *pubSubPublisher) Publish(ctx context.Context, topicID string, payload [
 }
 
 func (p *pubSubPublisher) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	for _, topic := range p.topics {
 		topic.Stop()
 	}
