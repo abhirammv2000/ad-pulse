@@ -4,11 +4,16 @@ on:
     push:
         branches:
             - main
+    workflow_dispatch:
 
 jobs:
     deploy:
+        # Deploys only when the repo variable DEPLOY_ENABLED is "true", or when
+        # started by hand. It needs the GCP secrets and variables the steps below
+        # read. Without them the job is skipped instead of failing every push.
+        if: ${{ vars.DEPLOY_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
         runs-on: ubuntu-latest
-        
+
         steps:
         - name: Checkout repository
           uses: actions/checkout@v2

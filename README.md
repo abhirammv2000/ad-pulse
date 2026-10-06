@@ -68,7 +68,7 @@ helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
   --namespace adpulse -f my-values-secrets.yaml
 ```
 
-The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`).
+The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build.
 
 ## Known gaps
 
