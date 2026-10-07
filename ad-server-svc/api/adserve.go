@@ -117,7 +117,12 @@ func (server *Server) adserve(ctx *gin.Context) {
 
 // entityExists checks the ad manager for a publisher or ad unit, writing the
 // error response itself and reporting whether the caller should continue.
+// A 200 is remembered for a short time, see knownEntities.
 func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
+	if server.known.has(path) {
+		return true
+	}
+
 	req, err := http.NewRequestWithContext(ctx.Request.Context(), http.MethodGet, server.config.AdManagerAddress+path, nil)
 	if err != nil {
 		internalError(ctx, err)
@@ -135,5 +140,6 @@ func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": label + " not found"})
 		return false
 	}
+	server.known.remember(path)
 	return true
 }

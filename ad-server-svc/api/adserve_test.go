@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -444,4 +446,90 @@ func TestAdserve_TrackingUrlsAreUnsignedWithoutASecret(t *testing.T) {
 	if strings.Contains(bid.Ext.ClickUrl, "sig=") || strings.Contains(bid.Ext.RenderUrl, "sig=") {
 		t.Errorf("urls carry a signature although no secret is set: %s %s", bid.Ext.ClickUrl, bid.Ext.RenderUrl)
 	}
+}
+
+// countingManager answers 200 for P1 and ADU1 and counts every request.
+func countingManager(t *testing.T) (*httptest.Server, *int) {
+	t.Helper()
+	var calls int
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/publisher/publisherid/P1", "/adunit/ad_unit_id/ADU1":
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server, &calls
+}
+
+func TestAdserve_ConfirmedPublisherAndAdUnitAreNotCheckedAgain(t *testing.T) {
+	manager, calls := countingManager(t)
+	server := newTestServer(t, newFakeStore(), manager.URL)
+
+	serve(t, server, validQuery, slotRequest())
+	serve(t, server, validQuery, slotRequest())
+	serve(t, server, validQuery, slotRequest())
+
+	if *calls != 2 {
+		t.Errorf("the manager got %d requests for 3 ad requests, want 2 (one per entity, then cached)", *calls)
+	}
+}
+
+func TestAdserve_AnUnknownPublisherIsCheckedEveryTime(t *testing.T) {
+	manager, calls := countingManager(t)
+	server := newTestServer(t, newFakeStore(), manager.URL)
+
+	for i := 0; i < 3; i++ {
+		if code := serve(t, server, "adunit_id=ADU1&publisher_id=NOPE", slotRequest()).Code; code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404", code)
+		}
+	}
+
+	if *calls != 3 {
+		t.Errorf("the manager got %d requests, want 3: a 404 must not be cached", *calls)
+	}
+}
+
+func TestKnownEntitiesExpire(t *testing.T) {
+	known := newKnownEntities()
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	known.now = func() time.Time { return now }
+
+	known.remember("/publisher/publisherid/P1")
+	if !known.has("/publisher/publisherid/P1") {
+		t.Fatal("a path just confirmed should be known")
+	}
+	if known.has("/publisher/publisherid/P2") {
+		t.Error("a path never confirmed should not be known")
+	}
+
+	now = now.Add(knownEntityTTL - time.Second)
+	if !known.has("/publisher/publisherid/P1") {
+		t.Error("the path should still be known just before the TTL")
+	}
+	now = now.Add(2 * time.Second)
+	if known.has("/publisher/publisherid/P1") {
+		t.Error("the path should have expired after the TTL")
+	}
+}
+
+func TestKnownEntitiesAreSafeForConcurrentUse(t *testing.T) {
+	known := newKnownEntities()
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			path := fmt.Sprintf("/publisher/publisherid/P%d", i%8)
+			known.remember(path)
+			known.has(path)
+		}(i)
+	}
+	wg.Wait()
 }

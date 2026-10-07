@@ -68,7 +68,7 @@ helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
   --namespace adpulse -f my-values-secrets.yaml
 ```
 
-The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build.
+The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build. The services' public URLs are read from repo variables (`AD_SERVER_URL_PROD`, `AD_MANAGER_URL_PROD`, `ENGAGEMENT_URL_PROD`, and the same with `_STAGE`). If a variable isn't set the workflow falls back to the address it used before.
 
 ## Known gaps
 
@@ -76,11 +76,10 @@ I would fix these next, roughly in this order:
 
 - **Click and render URLs can be replayed.** They are signed when `TRACKING_SECRET` is set (the compose stack sets it), so nobody can make up an event for an ad. A real URL can still be hit many times, and each hit counts. Without the secret the URLs are not checked at all.
 - **The manager API has no authentication,** and CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
-- **The ad server asks the manager twice on every ad request** (publisher, then ad unit). Each call has a 3 second timeout, but nothing is cached.
+- **The ad server asks the manager about the publisher and ad unit.** A confirmed one is remembered for 30 seconds, so a deleted publisher can keep serving for up to that long. Each call has a 3 second timeout.
 - **There are no database migrations.** The manager creates missing tables on startup and never alters existing ones.
 - **The six entity services repeat the same create and update code.**
 - **Names are lowercase and run together** (`adunitid`, `campaignstate`) in the database and the JSON API. The ad server and dashboard depend on them, so they would need a versioned change.
-- **The deploy workflows hard-code the services' external IPs.**
 
 ## History
 

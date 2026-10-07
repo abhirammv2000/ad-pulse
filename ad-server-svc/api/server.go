@@ -22,6 +22,7 @@ type Server struct {
 	router     *gin.Engine
 	store      cache.Store
 	httpClient *http.Client
+	known      *knownEntities
 }
 
 func NewServer(config util.Config, store cache.Store) (*Server, error) {
@@ -29,6 +30,7 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 		config:     config,
 		store:      store,
 		httpClient: &http.Client{Timeout: adManagerTimeout},
+		known:      newKnownEntities(),
 	}
 
 	server.setupRouter()

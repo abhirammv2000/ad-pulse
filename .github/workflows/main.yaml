@@ -51,10 +51,10 @@ jobs:
           # under Settings > Secrets and variables > Actions before this runs.
           run: |
             helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse \
-              --set ad_server_url="http://34.66.199.64:8080" \
-              --set ad_manager_url="http://34.121.57.232:5000" \
-              --set ad_engagement_svc_clk="http://34.31.189.11:8081/engagement/clk" \
-              --set ad_engagement_svc_rndr="http://34.31.189.11:8081/engagement/csc" \
+              --set ad_server_url="${{ vars.AD_SERVER_URL_PROD || 'http://34.66.199.64:8080' }}" \
+              --set ad_manager_url="${{ vars.AD_MANAGER_URL_PROD || 'http://34.121.57.232:5000' }}" \
+              --set ad_engagement_svc_clk="${{ vars.ENGAGEMENT_URL_PROD || 'http://34.31.189.11:8081' }}/engagement/clk" \
+              --set ad_engagement_svc_rndr="${{ vars.ENGAGEMENT_URL_PROD || 'http://34.31.189.11:8081' }}/engagement/csc" \
               --set-string adpulse.secrets.databaseUrl="${{ secrets.DATABASE_URL_PROD }}" \
               --set-string adpulse.secrets.mongodbUri="${{ secrets.MONGODB_URI_PROD }}" \
               --set-string adpulse.secrets.redisHost="${{ secrets.REDIS_HOST_PROD }}" \
@@ -79,6 +79,6 @@ jobs:
         - name: Run integration tests against prod
           run: |
             pip install requests
-            AD_MANAGER_HOST="http://34.121.57.232:5000" \
-            AD_SERVER_HOST="http://34.66.199.64:8080" \
+            AD_MANAGER_HOST="${{ vars.AD_MANAGER_URL_PROD || 'http://34.121.57.232:5000' }}" \
+            AD_SERVER_HOST="${{ vars.AD_SERVER_URL_PROD || 'http://34.66.199.64:8080' }}" \
               python -m unittest integration_test -v
