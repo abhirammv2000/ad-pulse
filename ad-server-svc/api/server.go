@@ -17,7 +17,7 @@ import (
 const adManagerTimeout = 3 * time.Second
 
 // How many decoded values each generation of the parse caches holds. An ad is about 1 KB of JSON, so the ad cache
-// stays under roughly 30 MB at twice this limit, and the campaign list changes rarely.
+// should stay near 30 MB at twice this limit (an estimate from the size of an ad, not measured), and the campaign list changes rarely.
 const (
 	decodedAdLimit           = 8192
 	decodedCampaignListLimit = 8
