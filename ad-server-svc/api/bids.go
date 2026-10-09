@@ -17,20 +17,34 @@ const imageAssetType = 3
 
 // getBids matches each ranked ad against the impressions on offer, at most one
 // bid per impression and at most one bid per ad.
+//
+// Each creative is read from the cache once per request, and the walk stops as
+// soon as every impression has a bid: a later ad could not match anything, so
+// reading its creative would only cost a round trip.
 func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
 	var bids []cache.Bid
 	impIDTaken := make(map[string]bool)
 	requestTime := time.Now().Unix()
+	wanted := distinctImpressionIDs(bidParams.RequestBody.Imp)
+	creatives := make(map[string]creativeLookup)
 
 	for _, ad := range *bidParams.RankedAds {
-		creative, err := server.store.GetCreatives(ad.CreativeID)
-		if err != nil {
+		if len(impIDTaken) >= wanted {
+			break
+		}
+
+		lookup, seen := creatives[ad.CreativeID]
+		if !seen {
+			lookup.creative, lookup.err = server.store.GetCreatives(ad.CreativeID)
+			creatives[ad.CreativeID] = lookup
+		}
+		if lookup.err != nil {
 			// One unreadable creative should not sink the whole request.
-			log.Printf("skipping ad %s: cannot load creative %s: %v", ad.AdID, ad.CreativeID, err)
+			log.Printf("skipping ad %s: cannot load creative %s: %v", ad.AdID, ad.CreativeID, lookup.err)
 			continue
 		}
 
-		asset, impID, ok := matchImpression(creative, bidParams.RequestBody.Imp, impIDTaken)
+		asset, impID, ok := matchImpression(lookup.creative, bidParams.RequestBody.Imp, impIDTaken)
 		if !ok {
 			continue
 		}
@@ -48,6 +62,22 @@ func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
 		return nil, fmt.Errorf("no ads available")
 	}
 	return &bids, nil
+}
+
+// creativeLookup is what the cache answered for one creative id, kept for the rest of the request.
+type creativeLookup struct {
+	creative *cache.Creative
+	err      error
+}
+
+// distinctImpressionIDs counts the impressions a bid can still be made for. Impressions that share an id share one
+// slot, because the taken map is keyed by id.
+func distinctImpressionIDs(impressions []cache.Impression) int {
+	ids := make(map[string]struct{}, len(impressions))
+	for _, imp := range impressions {
+		ids[imp.ID] = struct{}{}
+	}
+	return len(ids)
 }
 
 // matchImpression finds the first free impression whose requested image

@@ -16,6 +16,13 @@ import (
 // ad request waits on two of them, so a slow manager has to fail fast.
 const adManagerTimeout = 3 * time.Second
 
+// How many decoded values each generation of the parse caches holds. An ad is about 1 KB of JSON, so the ad cache
+// stays under roughly 30 MB at twice this limit, and the campaign list changes rarely.
+const (
+	decodedAdLimit           = 8192
+	decodedCampaignListLimit = 8
+)
+
 // Server answers ad requests over HTTP.
 type Server struct {
 	config     util.Config
@@ -23,6 +30,10 @@ type Server struct {
 	store      cache.Store
 	httpClient *http.Client
 	known      *knownEntities
+
+	// Decoded campaigns and ads, kept by their JSON text. See contentCache.
+	campaignsDecoded *contentCache[[]cache.Campaign]
+	adsDecoded       *contentCache[cache.Ad]
 }
 
 func NewServer(config util.Config, store cache.Store) (*Server, error) {
@@ -31,6 +42,9 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 		store:      store,
 		httpClient: &http.Client{Timeout: adManagerTimeout},
 		known:      newKnownEntities(),
+
+		campaignsDecoded: newContentCache[[]cache.Campaign](decodedCampaignListLimit),
+		adsDecoded:       newContentCache[cache.Ad](decodedAdLimit),
 	}
 
 	server.setupRouter()

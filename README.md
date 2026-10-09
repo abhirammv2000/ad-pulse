@@ -59,6 +59,24 @@ helm lint ad-devops/helm/ad-pulse
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request. The unit tests mock the database, Redis and Pub/Sub, so they need none of them. The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs turned on.
 
+## Performance of the ad server
+
+`ad-server-svc/api/adserve_bench_test.go` measures the serve path (`go test ./api -run xxx -bench Adserve -benchmem`). The first run showed two problems, and both are fixed.
+
+1. **Cache round trips grew with the number of ads.** `getBids` read a creative from Redis for every ranked ad, even after every impression already had a bid. It now reads each creative once per request and stops when all impressions are filled. The bids are the same; four tests that count reads fail on the old code.
+2. **Most of the CPU was `encoding/json`.** The profile was almost all decoding, and the same ad strings were decoded again on every request. Decoded campaigns and ads are now kept by their exact JSON text (`api/parsecache.go`). Because the key is the text, an edited ad is a miss and can never be served stale. Memory is bounded by two generations of 8,192 entries.
+
+Measured on a laptop (Go 1.23, 2 cores in a Linux container). The round-trip rows charge 200 microseconds per Redis call.
+
+| 50 campaigns x 20 ads | before | after |
+|---|---|---|
+| CPU time per request | 14.2 ms | 2.1 ms |
+| Allocations per request | 27,304 | 134 |
+| Redis calls per request | 1,051 | 52 |
+| Request time with 200 us per call | 1.17 s | 59 ms |
+
+What is still slow: one `HGetAll` per campaign. With many campaigns that is the next cost, and the fix would be a different Redis layout or a pipeline, not more caching here. The race detector runs on all tests, including a test with eight goroutines hammering the parse cache while generations rotate.
+
 ## Deploying
 
 The Helm chart in [ad-devops/helm/ad-pulse](ad-devops/helm/ad-pulse/) deploys every service. Credentials never go in `values.yaml`. Pass them from a values file that isn't committed, or with `--set-string` from CI secrets:
