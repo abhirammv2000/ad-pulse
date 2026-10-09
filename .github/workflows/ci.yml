@@ -69,6 +69,7 @@ jobs:
 
       - run: go vet ./...
       - run: go test -race ./...
+      - run: go test -run "^$" -bench . -benchtime 1x ./...  # benchmarks must keep compiling and running
 
   frontend:
     name: Frontend
