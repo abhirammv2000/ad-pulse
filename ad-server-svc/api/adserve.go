@@ -3,7 +3,6 @@ package api
 import (
 	"adserver/cache"
 	"adserver/util"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -47,8 +46,8 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
-	var campaignList []cache.Campaign
-	if err := json.Unmarshal([]byte(campaigns), &campaignList); err != nil {
+	campaignList, err := server.campaignsDecoded.get(campaigns)
+	if err != nil {
 		internalError(ctx, err)
 		return
 	}
@@ -79,8 +78,8 @@ func (server *Server) adserve(ctx *gin.Context) {
 		}
 
 		for _, ad := range ads {
-			var adObj cache.Ad
-			if err := json.Unmarshal([]byte(ad), &adObj); err != nil {
+			adObj, err := server.adsDecoded.get(ad)
+			if err != nil {
 				log.Printf("skipping malformed ad in campaign %s: %v", campaign.CampaignID, err)
 				continue
 			}
