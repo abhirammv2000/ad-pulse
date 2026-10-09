@@ -64,7 +64,7 @@ helm lint ad-devops/helm/ad-pulse
 `ad-server-svc/api/adserve_bench_test.go` measures the serve path (`go test ./api -run xxx -bench Adserve -benchmem`). The first run showed two problems, and both are fixed.
 
 1. **Cache round trips grew with the number of ads.** `getBids` read a creative from Redis for every ranked ad, even after every impression already had a bid. It now reads each creative once per request and stops when all impressions are filled. The bids are the same; four tests that count reads fail on the old code.
-2. **Most of the CPU was `encoding/json`.** The profile was almost all decoding, and the same ad strings were decoded again on every request. Decoded campaigns and ads are now kept by their exact JSON text (`api/parsecache.go`). Because the key is the text, an edited ad is a miss and can never be served stale. Memory is bounded by two generations of 8,192 entries.
+2. **Most of the CPU was `encoding/json`.** The profile was almost all decoding, and the same ad strings were decoded again on every request. Decoded campaigns and ads are now kept by their exact JSON text (`api/parsecache.go`). Because the key is the text, an edited ad is a miss and can never be served stale. Memory is bounded by two generations of 8,192 entries (about 30 MB by my estimate; I did not measure it).
 
 Measured on a laptop (Go 1.23, 2 cores in a Linux container). The round-trip rows charge 200 microseconds per Redis call.
 
