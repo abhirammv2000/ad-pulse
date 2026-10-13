@@ -15,6 +15,7 @@ Environment variables, or an `app.env` file in the working directory (see
 |---|---|---|
 | `SERVER_ADDRESS` | `0.0.0.0:8080` | Address to listen on |
 | `AD_MANAGER_ADDRESS` | `http://localhost:5000` | ad-manager-svc base URL |
+| `AD_MANAGER_API_KEY` | (empty) | Sent to ad-manager-svc as `X-API-Key` when it checks a publisher or ad unit. Must match the manager's `API_KEY`. If the manager rejects it (401) the ad server logs that and answers 502, not "not found" |
 | `REDIS_HOST` | `localhost` | Redis host for the serving cache |
 | `REDIS_PORT` | `6379` | |
 | `REDIS_USERNAME`, `REDIS_PASSWORD` | (empty) | |

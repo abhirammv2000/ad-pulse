@@ -12,6 +12,7 @@ next one still runs. The service exits cleanly on SIGTERM.
 | Variable | Purpose |
 |---|---|
 | `AD_MANAGER_URL` | Base URL of ad-manager-svc (required) |
+| `AD_MANAGER_API_KEY` | API key sent as `X-API-Key`. Needed when the manager has `API_KEY` set; leave empty otherwise |
 | `REFRESH_INTERVAL_SECONDS` | Seconds between refreshes (default 15) |
 
 ## Running

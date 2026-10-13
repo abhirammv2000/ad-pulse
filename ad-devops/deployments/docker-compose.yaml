@@ -9,7 +9,10 @@
 # integration_test.py can run against this stack with:
 #
 #   AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
-#     python -m unittest integration_test
+#     AD_MANAGER_API_KEY=local-dev-api-key python -m unittest integration_test
+#
+# The manager has an API key here (API_KEY below), so the dashboard asks for it the first time it loads: enter
+# local-dev-api-key. Remove API_KEY from ad-manager-svc to run with an open manager, as older deployments do.
 #
 # The previous version of this file only started Kafka/Zookeeper, which the
 # engagement pipeline stopped using when it moved to GCP Pub/Sub. It never
@@ -103,6 +106,7 @@ services:
       DATABASE_URL: postgresql://adpulse:adpulse@postgres:5432/adpulse
       MONGODB_URI: mongodb://mongodb:27017
       REDIS_HOST: redis
+      API_KEY: local-dev-api-key
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,6 +119,7 @@ services:
     build: ../../ad-refresh-cache-svc
     environment:
       AD_MANAGER_URL: http://ad-manager-svc:5000
+      AD_MANAGER_API_KEY: local-dev-api-key
     depends_on:
       - ad-manager-svc
 
@@ -125,6 +130,7 @@ services:
     environment:
       SERVER_ADDRESS: 0.0.0.0:8080
       AD_MANAGER_ADDRESS: http://ad-manager-svc:5000
+      AD_MANAGER_API_KEY: local-dev-api-key
       REDIS_HOST: redis
       CLICK_URL: http://localhost:8081/engagement/clk
       RENDER_URL: http://localhost:8081/engagement/csc

@@ -9,6 +9,7 @@ import (
 type Config struct {
 	ServerAddress    string `mapstructure:"SERVER_ADDRESS"`
 	AdManagerAddress string `mapstructure:"AD_MANAGER_ADDRESS"`
+	AdManagerAPIKey  string `mapstructure:"AD_MANAGER_API_KEY"`
 	RedisHost        string `mapstructure:"REDIS_HOST"`
 	RedisPort        string `mapstructure:"REDIS_PORT"`
 	RedisUsername    string `mapstructure:"REDIS_USERNAME"`
@@ -24,6 +25,7 @@ type Config struct {
 var defaults = map[string]string{
 	"SERVER_ADDRESS":     "0.0.0.0:8080",
 	"AD_MANAGER_ADDRESS": "http://localhost:5000",
+	"AD_MANAGER_API_KEY": "",
 	"REDIS_HOST":         "localhost",
 	"REDIS_PORT":         "6379",
 	"REDIS_USERNAME":     "",

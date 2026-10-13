@@ -8,11 +8,13 @@ import AdUnitPage from './components/pages/AdUnitPage'; // Import AdUnitPage com
 import CampaignPage from './components/pages/CampaignPage';
 import AdPage from './components/pages/AdPage';
 import Reports from './components/pages/Reports';
+import ApiKeyDialog from './components/ApiKeyDialog';
 
 
 function App() {
   return (
     <Router>
+      <ApiKeyDialog />
       <div style={{ display: 'flex' }}>
         <NavBar />
         <div style={{ padding: '20px' }}>
