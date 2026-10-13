@@ -17,6 +17,8 @@ log = logging.getLogger("refresh_cache")
 REQUEST_TIMEOUT_SECONDS = 10
 DEFAULT_INTERVAL_SECONDS = 15
 
+API_KEY_HEADER = "X-API-Key"
+
 # Campaigns first, then the ads and creatives that belong to them.
 CACHE_PATHS = ("/cache/campaigns", "/cache/ads", "/cache/creatives")
 
@@ -33,6 +35,13 @@ def call_endpoint(session, url):
         log.error("%s returned status %s", url, response.status_code)
         return False
     return True
+
+
+def configure_session(session, api_key):
+    """Send the manager's API key on every request, when there is one."""
+    if api_key:
+        session.headers[API_KEY_HEADER] = api_key
+    return session
 
 
 def refresh_all(session, base_url):
@@ -61,6 +70,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: stop.set())
 
     with requests.Session() as session:
+        configure_session(session, os.getenv("AD_MANAGER_API_KEY", ""))
         # Event.wait doubles as the sleep, so a SIGTERM ends the loop at once
         # instead of after the rest of the interval.
         while not stop.is_set():
