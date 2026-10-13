@@ -23,6 +23,19 @@ def session_returning(*outcomes):
     return session
 
 
+class ConfigureSessionTest(unittest.TestCase):
+    def test_the_key_is_sent_on_every_request_of_a_real_session(self):
+        session = refresh_cache.configure_session(requests.Session(), 'the-key')
+        prepared = session.prepare_request(requests.Request('GET', 'http://manager/cache/ads'))
+        self.assertEqual(prepared.headers['X-API-Key'], 'the-key')
+
+    def test_no_key_adds_no_header(self):
+        for key in ('', None):
+            session = refresh_cache.configure_session(requests.Session(), key)
+            prepared = session.prepare_request(requests.Request('GET', 'http://manager/cache/ads'))
+            self.assertNotIn('X-API-Key', prepared.headers)
+
+
 class RefreshAllTest(unittest.TestCase):
     def test_calls_campaigns_then_ads_then_creatives(self):
         session = session_returning(200, 200, 200)
