@@ -16,45 +16,44 @@ jobs:
 
         steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
     
-        - name: Set up Google Cloud SDK
-          uses: google-github-actions/setup-gcloud@v0.2.0
-          with:
-            service_account_key: ${{ secrets.GCP_SA_KEY_PROD }}
-            project_id: ${{ vars.GCP_PROJECT_ID_PROD }}
-            export_default_credentials: true
-          
-        - name: Install kubectl
-          run: |
-            gcloud components install kubectl
-            gcloud components install gke-gcloud-auth-plugin
-        
         - name: Authenticate with Google Cloud
-          run: |
-            printf "%s" '${{ secrets.GCP_SA_KEY_PROD }}' > key.json
-            gcloud auth activate-service-account --key-file=key.json
-  
-    
+          uses: google-github-actions/auth@v2
+          with:
+            credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+        - name: Set up the Google Cloud SDK and kubectl
+          uses: google-github-actions/setup-gcloud@v2
+          with:
+            project_id: ${{ vars.GCP_PROJECT_ID_PROD }}
+            install_components: kubectl,gke-gcloud-auth-plugin
+
         - name: Set up Kubernetes cluster context
           run: gcloud container clusters get-credentials ${{ vars.GCP_CLUSTER_NAME_PROD }} --zone ${{ vars.GCP_CLUSTER_ZONE_PROD}} --project ${{ vars.GCP_PROJECT_ID_PROD }}
     
-        - name: Configure Helm and add kube-prometheus-stack repository
+        - name: Check the service URLs are set
+          # There are no built-in addresses to fall back on, so a missing variable has to stop the deploy here
+          # instead of putting an empty URL into every service.
+          env:
+            AD_SERVER_URL: ${{ vars.AD_SERVER_URL_PROD }}
+            AD_MANAGER_URL: ${{ vars.AD_MANAGER_URL_PROD }}
+            ENGAGEMENT_URL: ${{ vars.ENGAGEMENT_URL_PROD }}
           run: |
-            helm repo add stable https://charts.helm.sh/stable
-            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-            helm repo update
-    
+            for name in AD_SERVER_URL AD_MANAGER_URL ENGAGEMENT_URL; do
+              if [ -z "${!name}" ]; then echo "Set the repository variable ${name}_PROD (Settings, Secrets and variables, Actions)."; exit 1; fi
+            done
+
         - name: Upgrade Helm chart
           # Credentials come from repo/environment secrets, never from values.yaml
           # (see ad-devops/helm/ad-pulse/templates/secrets.yaml). Configure these
           # under Settings > Secrets and variables > Actions before this runs.
           run: |
             helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse \
-              --set ad_server_url="${{ vars.AD_SERVER_URL_PROD || 'http://34.66.199.64:8080' }}" \
-              --set ad_manager_url="${{ vars.AD_MANAGER_URL_PROD || 'http://34.121.57.232:5000' }}" \
-              --set ad_engagement_svc_clk="${{ vars.ENGAGEMENT_URL_PROD || 'http://34.31.189.11:8081' }}/engagement/clk" \
-              --set ad_engagement_svc_rndr="${{ vars.ENGAGEMENT_URL_PROD || 'http://34.31.189.11:8081' }}/engagement/csc" \
+              --set ad_server_url="${{ vars.AD_SERVER_URL_PROD }}" \
+              --set ad_manager_url="${{ vars.AD_MANAGER_URL_PROD }}" \
+              --set ad_engagement_svc_clk="${{ vars.ENGAGEMENT_URL_PROD }}/engagement/clk" \
+              --set ad_engagement_svc_rndr="${{ vars.ENGAGEMENT_URL_PROD }}/engagement/csc" \
               --set-string adpulse.secrets.databaseUrl="${{ secrets.DATABASE_URL_PROD }}" \
               --set-string adpulse.secrets.mongodbUri="${{ secrets.MONGODB_URI_PROD }}" \
               --set-string adpulse.secrets.redisHost="${{ secrets.REDIS_HOST_PROD }}" \
@@ -64,6 +63,7 @@ jobs:
               --set-string adpulse.secrets.supabaseUrl="${{ secrets.SUPABASE_URL }}" \
               --set-string adpulse.secrets.supabaseKey="${{ secrets.SUPABASE_KEY }}" \
               --set-string adpulse.secrets.trackingSecret="${{ secrets.TRACKING_SECRET }}" \
+              --set-string adpulse.secrets.managerApiKey="${{ secrets.MANAGER_API_KEY }}" \
               --set-string adpulse.secrets.gcpProjectId="${{ vars.GCP_PROJECT_ID_PROD }}"
 
     integration-test:
@@ -74,11 +74,12 @@ jobs:
           run: sleep 120
 
         - name: Checkout code
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
 
         - name: Run integration tests against prod
           run: |
             pip install requests
-            AD_MANAGER_HOST="${{ vars.AD_MANAGER_URL_PROD || 'http://34.121.57.232:5000' }}" \
-            AD_SERVER_HOST="${{ vars.AD_SERVER_URL_PROD || 'http://34.66.199.64:8080' }}" \
+            AD_MANAGER_API_KEY="${{ secrets.MANAGER_API_KEY }}" \
+            AD_MANAGER_HOST="${{ vars.AD_MANAGER_URL_PROD }}" \
+            AD_SERVER_HOST="${{ vars.AD_SERVER_URL_PROD }}" \
               python -m unittest integration_test -v
