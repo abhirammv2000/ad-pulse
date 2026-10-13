@@ -2,6 +2,8 @@
 
 An ad-serving platform built from six small services. An ad manager lets you create publishers, advertisers, campaigns, ads and creatives. An ad server picks the best ad for a page slot. An engagement pipeline counts clicks and renders for each ad.
 
+**Status: finished.** No further development is planned. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
+
 ```
 ad-manager-frontend -> ad-manager-svc -> Postgres
                             |
@@ -100,7 +102,7 @@ To turn on the manager API key in a cluster, set the Actions secret `MANAGER_API
 
 ## Known gaps
 
-I would fix these next, roughly in this order:
+These are the limits I know about and chose not to build. If this work continued, I would take them roughly in this order:
 
 - **Click and render URLs can be replayed.** They are signed when `TRACKING_SECRET` is set (the compose stack sets it), so nobody can make up an event for an ad. A real URL can still be hit many times, and each hit counts. Without the secret the URLs are not checked at all.
 - **The manager API key is one shared key, and it is off unless `API_KEY` is set.** The compose stack sets it. A deployment that does not set it is open, as before. There are no users or roles, so anyone with the key can change anything. The dashboard asks for the key once per browser tab and keeps it in `sessionStorage`. CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
