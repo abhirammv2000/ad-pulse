@@ -10,7 +10,7 @@ import {
 
 // The tests use a real axios instance with a fake adapter, so what is checked is the header axios would really
 // send, not a mock of it.
-jest.mock('./config', () => ({ API_BASE_URL: 'http://manager:5000' }));
+vi.mock('./config', () => ({ API_BASE_URL: 'http://manager:5000' }));
 
 const MANAGER = 'http://manager:5000';
 
@@ -48,10 +48,10 @@ describe('storing the key', () => {
   });
 
   test('blocked storage does not break the page', () => {
-    const getItem = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-    const setItem = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
     expect(getApiKey()).toBe('');
@@ -111,7 +111,7 @@ describe('a 401 from the manager', () => {
   let onAuthRequired;
 
   beforeEach(() => {
-    onAuthRequired = jest.fn();
+    onAuthRequired = vi.fn();
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
   });
 

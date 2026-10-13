@@ -1,1 +1,10 @@
-requests>=2.31
+# Pinned to the versions the tests ran against on Python 3.12. The first block is what the service asks for,
+# the second is what those pull in. To update, install the unpinned names in a clean environment, run the
+# tests, and copy `pip freeze` here.
+requests==2.34.2
+
+# Pulled in by the above
+certifi==2026.7.22
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0
