@@ -55,9 +55,12 @@ cd ad-server-svc && go vet ./... && go test -race ./...
 cd adpulse-engagement-svc && go vet ./... && go test -race ./...
 cd ad-manager-frontend && npm test -- --watchAll=false
 helm lint ad-devops/helm/ad-pulse
+ruff check .
 ```
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request. The unit tests mock the database, Redis and Pub/Sub, so they need none of them. The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs turned on.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request, plus `gofmt`, a coverage table for each service, and a job that checks the database migrations against a real Postgres. The unit tests mock the database, Redis and Pub/Sub, so they need none of them. The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs and the manager API key turned on.
+
+The lint rules in [`ruff.toml`](ruff.toml) are the ones that find real mistakes (undefined names, unused imports), not style. Coverage is reported, and there is no minimum a change has to meet.
 
 ## Performance of the ad server
 
@@ -88,14 +91,16 @@ helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
 
 The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build. The services' public URLs are read from repo variables (`AD_SERVER_URL_PROD`, `AD_MANAGER_URL_PROD`, `ENGAGEMENT_URL_PROD`, and the same with `_STAGE`). If a variable isn't set the workflow falls back to the address it used before.
 
+To turn on the manager API key in a cluster, set `adpulse.secrets.managerApiKey` (the chart gives it to the manager as `API_KEY` and to the ad server and the refresh service as `AD_MANAGER_API_KEY`). The two deploy workflows do not pass it yet, so the `stage` and `main` deployments stay open until someone adds it there. See [the manager README](ad-manager-svc/README.md) for what the key protects.
+
 ## Known gaps
 
 I would fix these next, roughly in this order:
 
 - **Click and render URLs can be replayed.** They are signed when `TRACKING_SECRET` is set (the compose stack sets it), so nobody can make up an event for an ad. A real URL can still be hit many times, and each hit counts. Without the secret the URLs are not checked at all.
-- **The manager API has no authentication,** and CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
+- **The manager API key is one shared key, and it is off unless `API_KEY` is set.** The compose stack sets it. A deployment that does not set it is open, as before. There are no users or roles, so anyone with the key can change anything. The dashboard asks for the key once per browser tab and keeps it in `sessionStorage`. CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
 - **The ad server asks the manager about the publisher and ad unit.** A confirmed one is remembered for 30 seconds, so a deleted publisher can keep serving for up to that long. Each call has a 3 second timeout.
-- **There are no database migrations.** The manager creates missing tables on startup and never alters existing ones.
+- **Migrations exist but are run by hand.** Alembic has a baseline for the six tables, and CI checks that the models and the migrations agree. The manager still only creates missing tables when it starts and never alters one, so a change to an existing table needs `alembic upgrade head` run on purpose. Nothing runs it during a deploy.
 - **The six entity services repeat the same create and update code.**
 - **Names are lowercase and run together** (`adunitid`, `campaignstate`) in the database and the JSON API. The ad server and dashboard depend on them, so they would need a versioned change.
 

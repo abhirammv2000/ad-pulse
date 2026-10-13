@@ -18,6 +18,7 @@ All via environment variables:
 | `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD` | no | Redis auth |
 | `SUPABASE_URL`, `SUPABASE_KEY` | only for `/creative/upload` | Object storage for creative assets |
 | `SUPABASE_BUCKET` | no (default `Creatives`) | Storage bucket/folder name |
+| `API_KEY` | no | One key, or several separated by commas. When set, every route except `/health` needs it. See below |
 | `CORS_ALLOWED_ORIGINS` | no (default `*`) | Comma-separated allowed origins |
 | `FLASK_DEBUG` | no | Set to `1`/`true` to enable the Werkzeug debugger locally; never in production |
 
@@ -31,6 +32,28 @@ python run.py
 ```
 
 The container image runs `gunicorn` against `run:app` instead.
+
+## API key
+
+With `API_KEY` set, a request must send it in the `X-API-Key` header, or it gets `401 {"error": "missing or invalid API key"}`. `/health` is always open so the Kubernetes probes work, and so are browser preflight (`OPTIONS`) requests, which cannot carry a header. With `API_KEY` unset the API is open, as it was before this check existed, and a warning is logged at startup.
+
+To rotate a key, put the new one next to the old (`API_KEY=new,old`), update the callers (the ad server and the refresh service send `AD_MANAGER_API_KEY`, the dashboard asks for it), then remove the old one. Keys are compared as SHA-256 digests with `hmac.compare_digest`.
+
+This is one shared key. It says the caller is trusted, not who they are.
+
+## Migrations
+
+The schema is also defined by Alembic migrations in `migrations/`. The service itself still only creates missing tables on startup.
+
+```
+export DATABASE_URL=postgresql://user:pass@localhost:5432/adpulse
+alembic upgrade head      # a new, empty database
+alembic stamp head        # a database the service already created, so it is not migrated again
+alembic check             # fails if the models and the database differ
+alembic revision --autogenerate -m "what changed"   # after you change a model, then read the file it writes
+```
+
+Do not run `alembic upgrade head` on a database the service has already created. The baseline would try to create tables that exist. Use `stamp` there. CI checks both paths: a migrated database and a service-created one come out with the same schema.
 
 ## API behavior
 
@@ -50,7 +73,12 @@ and `publisher`. Lookup-by-id paths differ a little, see `app/routes/`.)
 Errors are always JSON, `{"error": "..."}`:
 
 - 400: the body is not a JSON object, a state is invalid, a required column is
-  empty, or an id points at a row that does not exist
+  empty (the response then has a `field` when Postgres says which one), an id
+  points at a row that does not exist, or a value is in the wrong format for its
+  column, such as a date Postgres cannot read. Postgres decides what is readable,
+  so the API accepts what the database accepts (the dashboard sends some numbers
+  as strings, and Postgres reads them)
+- 401: `API_KEY` is set and the key is missing or wrong
 - 404: the id was not found
 - 502: creative storage (Supabase) could not be reached
 - 500: anything unexpected. The details go to the log, not to the client.
@@ -59,6 +87,13 @@ Errors are always JSON, `{"error": "..."}`:
 
 ```
 python -m unittest discover -s app/test -p "*_test.py"
+```
+
+With a coverage table (`pip install coverage`):
+
+```
+python -m coverage run --source=. --omit="*/test/*,migrations/*" -m unittest discover -s app/test -p "*_test.py"
+python -m coverage report
 ```
 
 ## Layout
