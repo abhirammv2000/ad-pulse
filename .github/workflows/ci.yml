@@ -228,5 +228,9 @@ jobs:
       - name: Lint
         run: helm lint ad-devops/helm/ad-pulse
 
-      - name: Render
-        run: helm template ci ad-devops/helm/ad-pulse > /dev/null
+      # The rendered manifests are checked against the Kubernetes 1.30 API schemas, so a wrong field name or a
+      # wrong apiVersion fails here and not on a cluster.
+      - name: Render and validate
+        run: |
+          helm template ci ad-devops/helm/ad-pulse > rendered.yaml
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0 -strict -summary -kubernetes-version 1.30.0 - < rendered.yaml
