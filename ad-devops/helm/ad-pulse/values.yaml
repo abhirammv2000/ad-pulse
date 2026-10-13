@@ -20,6 +20,9 @@ adpulse:
     # Signs click and render URLs. ad-server-svc and adpulse-engagement-svc
     # must get the same value. Empty means unsigned URLs, fine for local use only.
     trackingSecret: ""
+    # The ad manager's API key. ad-manager-svc requires it as X-API-Key, and ad-server-svc and
+    # ad-refresh-cache-svc send it. Empty leaves the manager open, as before. Pass a real value with --set-string.
+    managerApiKey: ""
   namespace:
     name: "adpulse"
     labels:
