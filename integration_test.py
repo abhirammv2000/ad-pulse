@@ -43,9 +43,15 @@ class TestAPI(unittest.TestCase):
     def setUp(self):
         self.ad_manager_host = os.environ.get('AD_MANAGER_HOST')
         self.ad_server_host = os.environ.get('AD_SERVER_HOST')
+        # Calls to the manager go through one session so the manager's API key, when it has one, is sent on all
+        # of them. Without AD_MANAGER_API_KEY no header is sent, which is right for a manager with no API_KEY set.
+        self.manager = requests.Session()
+        api_key = os.environ.get('AD_MANAGER_API_KEY')
+        if api_key:
+            self.manager.headers['X-API-Key'] = api_key
 
     def _create_publisher(self):
-        resp = requests.post(self.ad_manager_host + '/publisher', json={
+        resp = self.manager.post(self.ad_manager_host + '/publisher', json={
             "publishername": "Integration Test Publisher",
             "publisherdomain": "integration-test.example.com",
             "createdby": "integration-test",
@@ -55,7 +61,7 @@ class TestAPI(unittest.TestCase):
         return resp.json()['publisher']['publisherid']
 
     def _create_advertiser(self):
-        resp = requests.post(self.ad_manager_host + '/advertiser', json={
+        resp = self.manager.post(self.ad_manager_host + '/advertiser', json={
             "advertisername": "Integration Test Advertiser",
             "industry": "Testing",
             "createdby": "integration-test",
@@ -65,7 +71,7 @@ class TestAPI(unittest.TestCase):
         return resp.json()['advertiser']['advertiserid']
 
     def _create_ad_unit(self, publisher_id):
-        resp = requests.post(self.ad_manager_host + '/adunit', json={
+        resp = self.manager.post(self.ad_manager_host + '/adunit', json={
             "adunittype": "NATIVE",
             "adunitname": "Integration Test Ad Unit",
             "publisherid": publisher_id,
@@ -76,7 +82,7 @@ class TestAPI(unittest.TestCase):
         return resp.json()['ad_unit']['adunitid']
 
     def _create_active_campaign(self, advertiser_id):
-        resp = requests.post(self.ad_manager_host + '/campaign', json={
+        resp = self.manager.post(self.ad_manager_host + '/campaign', json={
             "campaignname": "Integration Test Campaign",
             "advertiserid": advertiser_id,
             "startdate": FLIGHT_START,
@@ -90,7 +96,7 @@ class TestAPI(unittest.TestCase):
 
         # Only ACTIVE campaigns are projected into the serving cache
         # (ad-manager-svc/app/cache/cache_job.py).
-        activate = requests.patch(self.ad_manager_host + '/campaign',
+        activate = self.manager.patch(self.ad_manager_host + '/campaign',
                                    params={'campaign_id': campaign_id, 'state': 'ACTIVE'})
         self.assertEqual(activate.status_code, 200, f"campaign activate failed: {activate.status_code} {activate.text}")
         return campaign_id
@@ -100,7 +106,7 @@ class TestAPI(unittest.TestCase):
         # ad_serve_payload below - ad-server-svc's matchImpression
         # (ad-server-svc/api/bids.go) only bids a creative whose IMAGE asset
         # dimensions match what the caller asked for.
-        resp = requests.post(self.ad_manager_host + '/creative', json={
+        resp = self.manager.post(self.ad_manager_host + '/creative', json={
             "creativetype": "IMAGE",
             "creativename": "Integration Test Creative",
             "advertiserid": advertiser_id,
@@ -123,7 +129,7 @@ class TestAPI(unittest.TestCase):
         # Only ACTIVE creatives are projected into the serving cache
         # (ad-manager-svc/app/cache/cache_job.py) - ad-server-svc's bidder
         # loads the creative from cache and skips the ad if it's missing.
-        activate = requests.patch(self.ad_manager_host + '/creative',
+        activate = self.manager.patch(self.ad_manager_host + '/creative',
                                    params={'creative_id': creative_id, 'state': 'ACTIVE'})
         self.assertEqual(activate.status_code, 200, f"creative activate failed: {activate.status_code} {activate.text}")
         return creative_id
@@ -167,7 +173,7 @@ class TestAPI(unittest.TestCase):
         }
 
         # Make a POST request to create the ad
-        ad_response = requests.post(self.ad_manager_host + ad_creation_endpoint, json=ad_payload)
+        ad_response = self.manager.post(self.ad_manager_host + ad_creation_endpoint, json=ad_payload)
         self.assertEqual(ad_response.status_code, 201, f"Expected status code 201, but got {ad_response.status_code}: {ad_response.text}")
         response_data = ad_response.json()
         ad_id = response_data['ad']['adid']
@@ -177,14 +183,14 @@ class TestAPI(unittest.TestCase):
             'state': 'ACTIVE'
         }
 
-        ad_update_response = requests.patch(self.ad_manager_host + ad_creation_endpoint, params=query_params_activate_ad)
+        ad_update_response = self.manager.patch(self.ad_manager_host + ad_creation_endpoint, params=query_params_activate_ad)
         self.assertEqual(ad_update_response.status_code, 200, f"Expected status code 200, but got {ad_update_response.status_code}")
 
         time.sleep(5)
 
-        requests.get(self.ad_manager_host + cache_refresh_endpoint + '/campaigns')
-        requests.get(self.ad_manager_host + cache_refresh_endpoint + '/creatives')
-        cache_response = requests.get(self.ad_manager_host + cache_refresh_endpoint + '/ads')
+        self.manager.get(self.ad_manager_host + cache_refresh_endpoint + '/campaigns')
+        self.manager.get(self.ad_manager_host + cache_refresh_endpoint + '/creatives')
+        cache_response = self.manager.get(self.ad_manager_host + cache_refresh_endpoint + '/ads')
         self.assertEqual(cache_response.status_code, 200, f"Expected status code 200, but got {cache_response.status_code}")
         cache_response_data = cache_response.json()
         self.assertTrue(ad_id in cache_response_data[campaign_id], f"Expected adid {ad_id} in cache, but not in cache")
@@ -203,11 +209,11 @@ class TestAPI(unittest.TestCase):
             'state': 'INACTIVE'
         }
 
-        ad_update_response = requests.patch(self.ad_manager_host + ad_creation_endpoint, params=query_params_deactivate_ad)
+        ad_update_response = self.manager.patch(self.ad_manager_host + ad_creation_endpoint, params=query_params_deactivate_ad)
         self.assertEqual(ad_update_response.status_code, 200, f"Expected status code 200, but got {ad_update_response.status_code}")
 
         time.sleep(5)
-        cache_response = requests.get(self.ad_manager_host + cache_refresh_endpoint + '/ads')
+        cache_response = self.manager.get(self.ad_manager_host + cache_refresh_endpoint + '/ads')
         self.assertEqual(cache_response.status_code, 200, f"Expected status code 200, but got {cache_response.status_code}")
         cache_response_data = cache_response.json()
         self.assertTrue(campaign_id not in cache_response_data, f"Expected adid {ad_id} to be inactive, but found in cache")
@@ -230,7 +236,7 @@ class TestAPI(unittest.TestCase):
             self.assertEqual(unsigned_response.status_code, 403, f"Expected an unsigned click to be refused, but got {unsigned_response.status_code}")
 
         time.sleep(5)
-        report_response = requests.get(self.ad_manager_host + '/reports/' + ad_id)
+        report_response = self.manager.get(self.ad_manager_host + '/reports/' + ad_id)
         self.assertEqual(report_response.status_code, 200, f"Expected status code 200, but got {report_response.status_code}")
 
         report_response = report_response.json()

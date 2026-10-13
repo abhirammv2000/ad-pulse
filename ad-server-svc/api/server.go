@@ -23,6 +23,9 @@ const (
 	decodedCampaignListLimit = 8
 )
 
+// adManagerAPIKeyHeader is the header the ad manager reads its API key from.
+const adManagerAPIKeyHeader = "X-API-Key"
+
 // Server answers ad requests over HTTP.
 type Server struct {
 	config     util.Config

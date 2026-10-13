@@ -49,10 +49,9 @@ def create_session():
 def init_db():
     """Create any tables that don't exist yet.
 
-    There is no migration tool in this project (no Alembic), so this is the
-    only thing that ever defines the schema. It only creates missing tables -
-    safe to call on every startup, including against a database that already
-    has data.
+    This is what builds the schema when the service starts. It only creates missing tables, so it is safe to
+    call on every startup, including against a database that already has data. It never changes an existing
+    table. Changes to existing tables go through the Alembic migrations in migrations/ (see the README).
     """
     from app.models import Base  # noqa: F401 imports every model so it registers on Base.metadata
 
