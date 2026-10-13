@@ -53,7 +53,7 @@ cd adpulse-engagement-subscriber-svc && python -m unittest discover -s tests -p 
 cd ad-refresh-cache-svc && python -m unittest discover -s tests -p "*_test.py"
 cd ad-server-svc && go vet ./... && go test -race ./...
 cd adpulse-engagement-svc && go vet ./... && go test -race ./...
-cd ad-manager-frontend && npm test -- --watchAll=false
+cd ad-manager-frontend && npm test
 helm lint ad-devops/helm/ad-pulse
 ruff check .
 ```
