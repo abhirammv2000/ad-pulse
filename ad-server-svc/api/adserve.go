@@ -127,6 +127,9 @@ func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
 		internalError(ctx, err)
 		return false
 	}
+	if server.config.AdManagerAPIKey != "" {
+		req.Header.Set(adManagerAPIKeyHeader, server.config.AdManagerAPIKey)
+	}
 	resp, err := server.httpClient.Do(req)
 	if err != nil {
 		log.Printf("cannot check the %s with the ad manager: %v", label, err)
@@ -135,6 +138,13 @@ func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		// A rejected key is a configuration fault, not a missing publisher. Saying "not found" here would make
+		// every ad request fail with a misleading error.
+		log.Printf("the ad manager rejected the API key while checking the %s; check AD_MANAGER_API_KEY", label)
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
+		return false
+	}
 	if resp.StatusCode != http.StatusOK {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": label + " not found"})
 		return false
