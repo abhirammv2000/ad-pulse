@@ -160,16 +160,12 @@ jobs:
 
       - run: pip install requests
 
-      # The dashboard is not part of the test below, but its image has broken before, so it is built here.
-      - name: Build the dashboard image
-        run: ${{ env.COMPOSE }} build ad-manager-frontend
-
       - name: Start the services
-        run: ${{ env.COMPOSE }} up --build -d ad-manager-svc ad-refresh-cache-svc ad-server-svc adpulse-engagement-svc adpulse-engagement-subscriber-svc
+        run: ${{ env.COMPOSE }} up --build -d ad-manager-svc ad-refresh-cache-svc ad-server-svc adpulse-engagement-svc adpulse-engagement-subscriber-svc ad-manager-frontend
 
       - name: Wait until the services answer
         run: |
-          for url in http://localhost:5000/health http://localhost:8080/ http://localhost:8081/health; do
+          for url in http://localhost:5000/health http://localhost:8080/ http://localhost:8081/health http://localhost:3000/health; do
             for i in $(seq 1 60); do
               if curl -fsS -o /dev/null "$url"; then echo "up: $url"; break; fi
               if [ "$i" = 60 ]; then echo "never came up: $url"; exit 1; fi
@@ -183,6 +179,22 @@ jobs:
           AD_SERVER_HOST: http://localhost:8080
           AD_MANAGER_API_KEY: local-dev-api-key
         run: python -m unittest integration_test -v
+
+      # The dashboard's own tests run in jsdom, which cannot see a production bundle that fails to render (that
+      # happened once, from a bundler setting). This opens the real image in Chromium and walks through the API key
+      # dialog. playwright is installed in a scratch folder, so it is not a dependency of the dashboard.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Dashboard smoke test in a real browser
+        run: |
+          mkdir "$RUNNER_TEMP/smoke" && cp ad-manager-frontend/smoke/smoke.mjs "$RUNNER_TEMP/smoke/"
+          cd "$RUNNER_TEMP/smoke"
+          npm init -y > /dev/null
+          npm install --no-fund --no-audit playwright@1.64.0
+          npx playwright install --with-deps chromium
+          node smoke.mjs
 
       # The manager must refuse a request with no key when API_KEY is set, or the test above proves nothing about it.
       - name: The manager refuses a request without the key
@@ -209,12 +221,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: ad-manager-frontend/package-lock.json
 
       - run: npm ci
-      - run: npm test -- --watchAll=false
+      - run: npm test
       - run: npm run build
 
   helm:
