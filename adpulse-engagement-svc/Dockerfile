@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine3.21 AS builder
+FROM golang:1.26.9-alpine3.24 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -7,7 +7,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o app
 
 # Run stage: just the compiled binary, not the whole Go toolchain.
-FROM alpine:3.21
+FROM alpine:3.24
 WORKDIR /app
 COPY --from=builder /app/app .
 # No credentials are baked in: configuration comes from the environment at runtime.
