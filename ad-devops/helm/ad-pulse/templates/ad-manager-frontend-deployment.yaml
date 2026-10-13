@@ -20,8 +20,7 @@ spec:
         - name: {{ .Values.adpulse.ad_manager_frontend.name }}
           image: "{{ .Values.adpulse.ad_manager_frontend.image.repository }}:{{ .Values.adpulse.ad_manager_frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # nginx serving a static build, not the Create React App dev server
-          # this used to ship, hence the much smaller request/limit than before.
+          # nginx serving a static build. The old image ran a dev server, hence the much smaller request and limit.
           resources:
             requests:
               memory: 64Mi

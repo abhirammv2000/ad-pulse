@@ -7,7 +7,7 @@ const realLocation = window.location;
 beforeEach(() => {
   window.sessionStorage.clear();
   delete window.location;
-  window.location = { ...realLocation, reload: jest.fn() };
+  window.location = { ...realLocation, reload: vi.fn() };
 });
 
 afterEach(() => {

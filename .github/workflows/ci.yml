@@ -143,6 +143,73 @@ jobs:
           alembic stamp head
           alembic check
 
+  # Starts the real services in Docker Compose (with the API key and signed tracking URLs on) and runs
+  # integration_test.py through them: create, cache, serve, click, render, report.
+  end-to-end:
+    name: End to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE: docker compose -f ad-devops/deployments/docker-compose.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install requests
+
+      - name: Start the services
+        run: ${{ env.COMPOSE }} up --build -d ad-manager-svc ad-refresh-cache-svc ad-server-svc adpulse-engagement-svc adpulse-engagement-subscriber-svc ad-manager-frontend
+
+      - name: Wait until the services answer
+        run: |
+          for url in http://localhost:5000/health http://localhost:8080/ http://localhost:8081/health http://localhost:3000/health; do
+            for i in $(seq 1 60); do
+              if curl -fsS -o /dev/null "$url"; then echo "up: $url"; break; fi
+              if [ "$i" = 60 ]; then echo "never came up: $url"; exit 1; fi
+              sleep 3
+            done
+          done
+
+      - name: Run the integration test
+        env:
+          AD_MANAGER_HOST: http://localhost:5000
+          AD_SERVER_HOST: http://localhost:8080
+          AD_MANAGER_API_KEY: local-dev-api-key
+        run: python -m unittest integration_test -v
+
+      # The dashboard's own tests run in jsdom, which cannot see a production bundle that fails to render (that
+      # happened once, from a bundler setting). This opens the real image in Chromium and walks through the API key
+      # dialog. playwright is installed in a scratch folder, so it is not a dependency of the dashboard.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Dashboard smoke test in a real browser
+        run: |
+          mkdir "$RUNNER_TEMP/smoke" && cp ad-manager-frontend/smoke/smoke.mjs "$RUNNER_TEMP/smoke/"
+          cd "$RUNNER_TEMP/smoke"
+          npm init -y > /dev/null
+          npm install --no-fund --no-audit playwright@1.64.0
+          npx playwright install --with-deps chromium
+          node smoke.mjs
+
+      # The manager must refuse a request with no key when API_KEY is set, or the test above proves nothing about it.
+      - name: The manager refuses a request without the key
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/publisher)
+          if [ "$code" != 401 ]; then echo "expected 401, got $code"; exit 1; fi
+
+      - name: Logs
+        if: failure()
+        run: ${{ env.COMPOSE }} logs --no-color --tail=200
+
+      - name: Stop the services
+        if: always()
+        run: ${{ env.COMPOSE }} down -v
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -154,12 +221,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: ad-manager-frontend/package-lock.json
 
       - run: npm ci
-      - run: npm test -- --watchAll=false
+      - run: npm test
       - run: npm run build
 
   helm:
@@ -173,5 +240,9 @@ jobs:
       - name: Lint
         run: helm lint ad-devops/helm/ad-pulse
 
-      - name: Render
-        run: helm template ci ad-devops/helm/ad-pulse > /dev/null
+      # The rendered manifests are checked against the Kubernetes 1.30 API schemas, so a wrong field name or a
+      # wrong apiVersion fails here and not on a cluster.
+      - name: Render and validate
+        run: |
+          helm template ci ad-devops/helm/ad-pulse > rendered.yaml
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0 -strict -summary -kubernetes-version 1.30.0 - < rendered.yaml

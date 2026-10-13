@@ -36,11 +36,14 @@ docker compose -f ad-devops/deployments/docker-compose.yaml up --build
 
 This starts Postgres, Redis, MongoDB, a local Pub/Sub emulator and all six services, so nothing needs a cloud account. The frontend is on http://localhost:3000, the manager on :5000 and the ad server on :8080.
 
+The manager in this stack has an API key, `local-dev-api-key`. The dashboard asks for it the first time it loads. Enter that key.
+
 With it running, `integration_test.py` walks the whole flow (create, cache, serve, click, render, report):
 
 ```
+pip install requests
 AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
-  python -m unittest integration_test -v
+  AD_MANAGER_API_KEY=local-dev-api-key python -m unittest integration_test -v
 ```
 
 Each service reads its settings from environment variables, and its own README lists them.
@@ -53,7 +56,7 @@ cd adpulse-engagement-subscriber-svc && python -m unittest discover -s tests -p 
 cd ad-refresh-cache-svc && python -m unittest discover -s tests -p "*_test.py"
 cd ad-server-svc && go vet ./... && go test -race ./...
 cd adpulse-engagement-svc && go vet ./... && go test -race ./...
-cd ad-manager-frontend && npm test -- --watchAll=false
+cd ad-manager-frontend && npm test
 helm lint ad-devops/helm/ad-pulse
 ruff check .
 ```
@@ -89,9 +92,11 @@ helm upgrade --install adpulse ./ad-devops/helm/ad-pulse \
   --namespace adpulse -f my-values-secrets.yaml
 ```
 
-The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build. The services' public URLs are read from repo variables (`AD_SERVER_URL_PROD`, `AD_MANAGER_URL_PROD`, `ENGAGEMENT_URL_PROD`, and the same with `_STAGE`). If a variable isn't set the workflow falls back to the address it used before.
+The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`. They read their secrets from the repo's Actions secrets (`DATABASE_URL_STAGE` and `_PROD`, `MONGODB_URI_*`, `REDIS_*`, `SUPABASE_*`, `GCP_SA_KEY_PROD`) and need a GKE cluster. The production deploy in `main.yaml` only runs when the repo variable `DEPLOY_ENABLED` is `true` (or when you start it by hand), so a fork without those secrets doesn't show a failing build. The services' public URLs are read from repo variables (`AD_SERVER_URL_PROD`, `AD_MANAGER_URL_PROD`, `ENGAGEMENT_URL_PROD`, and the same with `_STAGE`). A missing URL variable stops the deploy with a message that names it. There are no built-in addresses.
 
-To turn on the manager API key in a cluster, set `adpulse.secrets.managerApiKey` (the chart gives it to the manager as `API_KEY` and to the ad server and the refresh service as `AD_MANAGER_API_KEY`). The two deploy workflows do not pass it yet, so the `stage` and `main` deployments stay open until someone adds it there. See [the manager README](ad-manager-svc/README.md) for what the key protects.
+To turn on the manager API key in a cluster, set the Actions secret `MANAGER_API_KEY`. The workflows pass it to the chart as `adpulse.secrets.managerApiKey`, which gives it to the manager as `API_KEY` and to the ad server and the refresh service as `AD_MANAGER_API_KEY`. The integration test after each deploy sends it too. If the secret is not set the manager stays open. See [the manager README](ad-manager-svc/README.md) for what the key protects.
+
+**What has and has not been tested.** CI renders the chart and checks every manifest against the Kubernetes 1.30 schemas, and the workflows were checked with `actionlint`. Nothing here has been run against a real GKE cluster, because I have no access to the original team's cluster or its Docker Hub account. The image tags in `values.yaml` also point at images that team built earlier, which do not contain the API key or the signed URLs. To deploy this code, build the images from this repository (the Compose file does) and set the tags.
 
 ## Known gaps
 

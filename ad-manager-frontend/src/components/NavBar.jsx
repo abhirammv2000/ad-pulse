@@ -2,7 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { List, ListItem, ListItemText, IconButton } from '@mui/material';
 import styled from '@emotion/styled';
-import { Storage as StorageIcon, Assessment as AssessmentIcon, Home as HomeIcon, TrendingUp as TrendingUpIcon } from '@mui/icons-material';
+// One import per icon. The package's index file pulls in every icon MUI has, which made the tests take minutes.
+import StorageIcon from '@mui/icons-material/Storage';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import HomeIcon from '@mui/icons-material/Home';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 const ColorDiv = styled.div`
   background-color: cornflowerblue;
