@@ -1,0 +1,35 @@
+# Values for trying the chart on a local cluster (Docker Desktop's Kubernetes). The images are the ones built from this
+# repository, so nothing is pulled. See ad-devops/README.md.
+image:
+  pullPolicy: Never
+
+# Pods reach the manager by its in-cluster name. The test reaches each service on localhost through the
+# LoadBalancer Docker Desktop exposes, and the click and render URLs point at the engagement service there.
+ad_server_url: http://ad-server-svc:8080
+ad_manager_url: http://ad-manager-svc:5000
+ad_engagement_svc_clk: http://localhost:8081/engagement/clk
+ad_engagement_svc_rndr: http://localhost:8081/engagement/csc
+
+adpulse:
+  namespace:
+    name: adpulse-verify
+  secrets:
+    databaseUrl: postgresql://adpulse:adpulse@postgres:5432/adpulse
+    mongodbUri: mongodb://mongodb:27017
+    redisHost: redis
+    gcpProjectId: adpulse-local
+    pubsubEmulatorHost: pubsub-emulator:8085
+    trackingSecret: local-dev-tracking-secret
+    managerApiKey: local-dev-api-key
+  ad_manager_svc:
+    image: {repository: adpulse-local/ad-manager-svc, tag: test}
+  ad_manager_frontend:
+    image: {repository: adpulse-local/ad-manager-frontend, tag: test}
+  ad_server_svc:
+    image: {repository: adpulse-local/ad-server-svc, tag: test}
+  adpulse_engagement_svc:
+    image: {repository: adpulse-local/adpulse-engagement-svc, tag: test}
+  adpulse_engagement_subscriber_svc:
+    image: {repository: adpulse-local/adpulse-engagement-subscriber-svc, tag: test, pullPolicy: Never}
+  ad_refresh_cache_svc:
+    image: {repository: adpulse-local/ad-refresh-cache-svc, tag: test, pullPolicy: Never}
