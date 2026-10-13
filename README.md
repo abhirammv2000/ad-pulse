@@ -36,11 +36,14 @@ docker compose -f ad-devops/deployments/docker-compose.yaml up --build
 
 This starts Postgres, Redis, MongoDB, a local Pub/Sub emulator and all six services, so nothing needs a cloud account. The frontend is on http://localhost:3000, the manager on :5000 and the ad server on :8080.
 
+The manager in this stack has an API key, `local-dev-api-key`. The dashboard asks for it the first time it loads. Enter that key.
+
 With it running, `integration_test.py` walks the whole flow (create, cache, serve, click, render, report):
 
 ```
+pip install requests
 AD_MANAGER_HOST=http://localhost:5000 AD_SERVER_HOST=http://localhost:8080 \
-  python -m unittest integration_test -v
+  AD_MANAGER_API_KEY=local-dev-api-key python -m unittest integration_test -v
 ```
 
 Each service reads its settings from environment variables, and its own README lists them.
