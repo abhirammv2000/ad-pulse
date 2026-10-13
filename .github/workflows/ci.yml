@@ -36,19 +36,31 @@ jobs:
           pip install \
             -r ad-manager-svc/requirements.txt \
             -r adpulse-engagement-subscriber-svc/requirements.txt \
-            -r ad-refresh-cache-svc/requirements.txt
+            -r ad-refresh-cache-svc/requirements.txt \
+            coverage ruff==0.17.0
 
+      # The rules in ruff.toml find real mistakes (undefined names, unused imports), not style.
+      - name: Lint
+        run: ruff check .
+
+      # Each service prints a coverage table after its tests. It is a report, with no minimum to meet.
       - name: ad-manager-svc
         working-directory: ad-manager-svc
-        run: python -m unittest discover -s app/test -p "*_test.py"
+        run: |
+          python -m coverage run --source=. --omit="*/test/*,migrations/*" -m unittest discover -s app/test -p "*_test.py"
+          python -m coverage report
 
       - name: adpulse-engagement-subscriber-svc
         working-directory: adpulse-engagement-subscriber-svc
-        run: python -m unittest discover -s tests -p "*_test.py"
+        run: |
+          python -m coverage run --source=. --omit="*/tests/*" -m unittest discover -s tests -p "*_test.py"
+          python -m coverage report
 
       - name: ad-refresh-cache-svc
         working-directory: ad-refresh-cache-svc
-        run: python -m unittest discover -s tests -p "*_test.py"
+        run: |
+          python -m coverage run --source=. --omit="*/tests/*" -m unittest discover -s tests -p "*_test.py"
+          python -m coverage report
 
   go:
     name: Go services
@@ -67,9 +79,69 @@ jobs:
         with:
           go-version-file: ${{ matrix.service }}/go.mod
 
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "These files need gofmt:"; echo "$unformatted"; exit 1; fi
       - run: go vet ./...
-      - run: go test -race ./...
+      - run: go test -race -cover ./...
       - run: go test -run "^$" -bench . -benchtime 1x ./...  # benchmarks must keep compiling and running
+
+  migrations:
+    name: Database migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: adpulse
+          POSTGRES_PASSWORD: adpulse
+          POSTGRES_DB: adpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U adpulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://adpulse:adpulse@localhost:5432/adpulse
+      PGPASSWORD: adpulse
+    defaults:
+      run:
+        working-directory: ad-manager-svc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ad-manager-svc/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      # `alembic check` fails if the models and the database differ, so a model change that comes without a
+      # migration fails here.
+      - name: A new database reaches the models' schema by migration
+        run: |
+          alembic upgrade head
+          alembic check
+
+      - name: Going down and up again works
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
+
+      # A database that init_db() created is stamped, not migrated. It has to be the same schema as the migration.
+      - name: A database the service created matches the migration
+        run: |
+          psql -h localhost -U adpulse -d postgres -c "CREATE DATABASE created_by_the_service"
+          export DATABASE_URL=postgresql://adpulse:adpulse@localhost:5432/created_by_the_service
+          python -c "from config.db import init_db; init_db()"
+          alembic stamp head
+          alembic check
 
   frontend:
     name: Frontend
