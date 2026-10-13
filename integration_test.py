@@ -235,8 +235,16 @@ class TestAPI(unittest.TestCase):
             unsigned_response = requests.get(clickURL.split('&sig=')[0])
             self.assertEqual(unsigned_response.status_code, 403, f"Expected an unsigned click to be refused, but got {unsigned_response.status_code}")
 
-        time.sleep(5)
-        report_response = self.manager.get(self.ad_manager_host + '/reports/' + ad_id)
+        # The counts arrive through Pub/Sub and MongoDB, so wait for them instead of sleeping once. A slow machine
+        # (a CI runner, say) takes longer than a fast one. The assertions below still say what was wrong.
+        deadline = time.time() + 30
+        while True:
+            report_response = self.manager.get(self.ad_manager_host + '/reports/' + ad_id)
+            report_rows = report_response.json() if report_response.status_code == 200 else []
+            if (report_rows and report_rows[0].get('click') == 1 and report_rows[0].get('render') == 1) \
+                    or time.time() > deadline:
+                break
+            time.sleep(1)
         self.assertEqual(report_response.status_code, 200, f"Expected status code 200, but got {report_response.status_code}")
 
         report_response = report_response.json()

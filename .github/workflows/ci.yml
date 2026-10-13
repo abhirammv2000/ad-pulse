@@ -143,6 +143,61 @@ jobs:
           alembic stamp head
           alembic check
 
+  # Starts the real services in Docker Compose (with the API key and signed tracking URLs on) and runs
+  # integration_test.py through them: create, cache, serve, click, render, report.
+  end-to-end:
+    name: End to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE: docker compose -f ad-devops/deployments/docker-compose.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install requests
+
+      # The dashboard is not part of the test below, but its image has broken before, so it is built here.
+      - name: Build the dashboard image
+        run: ${{ env.COMPOSE }} build ad-manager-frontend
+
+      - name: Start the services
+        run: ${{ env.COMPOSE }} up --build -d ad-manager-svc ad-refresh-cache-svc ad-server-svc adpulse-engagement-svc adpulse-engagement-subscriber-svc
+
+      - name: Wait until the services answer
+        run: |
+          for url in http://localhost:5000/health http://localhost:8080/ http://localhost:8081/health; do
+            for i in $(seq 1 60); do
+              if curl -fsS -o /dev/null "$url"; then echo "up: $url"; break; fi
+              if [ "$i" = 60 ]; then echo "never came up: $url"; exit 1; fi
+              sleep 3
+            done
+          done
+
+      - name: Run the integration test
+        env:
+          AD_MANAGER_HOST: http://localhost:5000
+          AD_SERVER_HOST: http://localhost:8080
+          AD_MANAGER_API_KEY: local-dev-api-key
+        run: python -m unittest integration_test -v
+
+      # The manager must refuse a request with no key when API_KEY is set, or the test above proves nothing about it.
+      - name: The manager refuses a request without the key
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/publisher)
+          if [ "$code" != 401 ]; then echo "expected 401, got $code"; exit 1; fi
+
+      - name: Logs
+        if: failure()
+        run: ${{ env.COMPOSE }} logs --no-color --tail=200
+
+      - name: Stop the services
+        if: always()
+        run: ${{ env.COMPOSE }} down -v
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
