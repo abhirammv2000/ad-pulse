@@ -1,15 +1,23 @@
+# `helm test <release>` runs this pod. It checks that the services answer from inside the cluster.
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "ad-pulse.fullname" . }}-test-connection"
+  name: "{{ .Values.adpulse.fullname }}-test-connection"
   labels:
     {{- include "ad-pulse.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
 spec:
+  restartPolicy: Never
   containers:
     - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ include "ad-pulse.fullname" . }}:{{ .Values.service.port }}']
-  restartPolicy: Never
+      image: busybox:1.37
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          wget -q -O /dev/null http://{{ .Values.adpulse.ad_manager_svc.name }}:{{ .Values.adpulse.ad_manager_svc.service.port }}/health
+          wget -q -O /dev/null http://{{ .Values.adpulse.ad_server_svc.name }}:{{ .Values.adpulse.ad_server_svc.service.port }}/
+          wget -q -O /dev/null http://{{ .Values.adpulse.adpulse_engagement_svc.name }}:{{ .Values.adpulse.adpulse_engagement_svc.service.port }}/health
+          echo "manager, ad server and engagement service all answered"

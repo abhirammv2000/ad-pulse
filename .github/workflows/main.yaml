@@ -49,7 +49,7 @@ jobs:
           # (see ad-devops/helm/ad-pulse/templates/secrets.yaml). Configure these
           # under Settings > Secrets and variables > Actions before this runs.
           run: |
-            helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse \
+            helm upgrade --install main ./ad-devops/helm/ad-pulse --values ./ad-devops/helm/ad-pulse/values.yaml --namespace=adpulse --create-namespace \
               --set ad_server_url="${{ vars.AD_SERVER_URL_PROD }}" \
               --set ad_manager_url="${{ vars.AD_MANAGER_URL_PROD }}" \
               --set ad_engagement_svc_clk="${{ vars.ENGAGEMENT_URL_PROD }}/engagement/clk" \

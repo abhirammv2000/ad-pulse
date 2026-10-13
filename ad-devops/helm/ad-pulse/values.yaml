@@ -23,6 +23,9 @@ adpulse:
     # The ad manager's API key. ad-manager-svc requires it as X-API-Key, and ad-server-svc and
     # ad-refresh-cache-svc send it. Empty leaves the manager open, as before. Pass a real value with --set-string.
     managerApiKey: ""
+    # host:port of a Pub/Sub emulator, for trying the chart without a Google Cloud project (see ad-devops/README.md).
+    # Leave empty for a real deployment, where the pods use their service account's credentials.
+    pubsubEmulatorHost: ""
   namespace:
     name: "adpulse"
     labels:
