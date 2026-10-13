@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import requests
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from app import create_app
 from app.routes import creative_routes
@@ -129,6 +129,35 @@ class ErrorHandlerTest(RouteTestCase):
         response = self.client.post('/ad', json={'adname': 'x'})
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.get_json())
+
+    @patch('app.routes.ad_routes.create_ad')
+    def test_a_not_null_violation_names_the_field_when_postgres_does(self, create_ad):
+        class Diag:
+            column_name = 'campaignid'
+
+        class Orig(Exception):
+            diag = Diag()
+
+        create_ad.side_effect = IntegrityError('INSERT ...', {}, Orig('null value in column "campaignid"'))
+        response = self.client.post('/ad', json={'adname': 'x'})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['field'], 'campaignid')
+
+    @patch('app.routes.ad_routes.create_ad')
+    def test_an_integrity_error_without_a_column_has_no_field(self, create_ad):
+        create_ad.side_effect = IntegrityError('INSERT ...', {}, Exception('violates foreign key constraint'))
+        body = self.client.post('/ad', json={'adname': 'x'}).get_json()
+        self.assertNotIn('field', body)
+
+    @patch('app.routes.campaign_routes.create_campaign')
+    def test_a_value_the_database_cannot_read_is_a_400_and_does_not_echo_the_database_message(self, create_campaign):
+        create_campaign.side_effect = DataError(
+            'INSERT ...', {}, Exception('invalid input syntax for type timestamp: "next week"'))
+        response = self.client.post('/campaign', json={'startdate': 'next week'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('wrong format', response.get_json()['error'])
+        self.assertNotIn('timestamp', response.get_data(as_text=True))
+        self.assertNotIn('next week', response.get_data(as_text=True))
 
     @patch('app.routes.ad_routes.get_all_ads', side_effect=RuntimeError('boom'))
     def test_unexpected_error_is_json_500_without_details(self, _):

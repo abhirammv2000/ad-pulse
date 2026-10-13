@@ -4,9 +4,10 @@ import os
 
 from flask import Flask, jsonify
 from flask_cors import CORS
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from werkzeug.exceptions import HTTPException
 
+from app.auth import install_api_key_auth
 from config import Config
 from config.db import init_db
 
@@ -20,6 +21,8 @@ def create_app(config_object=Config):
     # CORS is set up here and not in run.py so it also applies under gunicorn,
     # which imports `app` and never runs run.py's main block.
     CORS(app, origins=os.getenv("CORS_ALLOWED_ORIGINS", "*").split(","))
+
+    install_api_key_auth(app)
 
     register_blueprints(app)
     register_error_handlers(app)
@@ -58,6 +61,12 @@ def register_blueprints(app):
         app.register_blueprint(blueprint)
 
 
+def _violated_column(error):
+    """The column Postgres names in a not-null violation, or None. A foreign key violation names a constraint instead."""
+    diag = getattr(error.orig, 'diag', None)
+    return getattr(diag, 'column_name', None) or None
+
+
 def register_error_handlers(app):
     """Return JSON for every error, so API clients never get an HTML page."""
 
@@ -65,7 +74,23 @@ def register_error_handlers(app):
     def handle_integrity_error(error):
         # A required column was empty, or an id points at a row that doesn't exist.
         log.warning("rejected request: %s", error.orig)
-        return jsonify({'error': 'Missing required field or unknown reference id'}), 400
+        body = {'error': 'Missing required field or unknown reference id'}
+        field = _violated_column(error)
+        if field:
+            body['field'] = field
+        return jsonify(body), 400
+
+    @app.errorhandler(DataError)
+    def handle_data_error(error):
+        # The database could not read a value: "next week" for a date, "abc" for a number. The client sent bad
+        # data, so this is a 400, not a 500. The database's own message is logged and not returned, because it
+        # quotes the value and names internals.
+        #
+        # The database is left to decide what is a valid value, on purpose. Postgres accepts more date formats
+        # than ISO 8601 and the dashboard sends numbers such as the ad priority as strings, so a stricter check
+        # written here would reject requests that work today.
+        log.warning("rejected request: %s", error.orig)
+        return jsonify({'error': 'A value is in the wrong format for its field, for example a date or a number'}), 400
 
     @app.errorhandler(HTTPException)
     def handle_http_error(error):
