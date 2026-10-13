@@ -39,7 +39,7 @@ jobs:
         - name: Set up Node
           uses: actions/setup-node@v4
           with:
-            node-version: '20'
+            node-version: '24'
             cache: 'npm'
             cache-dependency-path: ad-manager-frontend/package-lock.json
 
@@ -47,7 +47,7 @@ jobs:
           run: |
             cd ad-manager-frontend
             npm ci
-            npm test -- --watchAll=false
+            npm test
 
     check-changes-and-build:
       runs-on: ubuntu-latest
