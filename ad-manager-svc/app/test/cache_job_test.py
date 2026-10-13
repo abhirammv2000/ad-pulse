@@ -3,7 +3,6 @@ every cached creative because both were swept with the same `C*` glob.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
 
 
 class FakeRedis:
