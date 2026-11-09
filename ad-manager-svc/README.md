@@ -74,10 +74,28 @@ Errors are always JSON, `{"error": "..."}`:
 
 - 400: the body is not a JSON object, a state is invalid, a required column is
   empty (the response then has a `field` when Postgres says which one), an id
-  points at a row that does not exist, or a value is in the wrong format for its
-  column, such as a date Postgres cannot read. Postgres decides what is readable,
-  so the API accepts what the database accepts (the dashboard sends some numbers
-  as strings, and Postgres reads them)
+  points at a row that does not exist, a value is in the wrong format for its
+  column, such as a date Postgres cannot read, or one of the JSON fields below is
+  wrong (the response then has a `field`, such as `budget.dailyBudget`). For typed
+  columns Postgres decides what is readable, so a number sent as a string still works there
+
+### JSON fields of ads and campaigns
+
+Postgres stores these as JSONB and checks nothing, but ad-server-svc decodes them into typed Go structs and skips an ad
+it cannot read. So [app/validation.py](app/validation.py) checks them on create and update. A field that is missing or
+`null` means "not set". Only the key names below are accepted.
+
+| Field | Rules |
+|---|---|
+| `bidinfo` (ads) | `{"bid": number, "bidType": "CPM" or "CPC"}`, both required |
+| `budget` (ads and campaigns) | `{"dailyBudget": number, "totalBudget": number, "currencyCode": "USD"}`, each optional |
+| `ad_unit_targeted` (ads) | a list of ad unit ids. An empty list means any ad unit |
+| `targetinginfo` (ads) | `{"dayTargeting": rule, "timeTargeting": rule}` where a rule is `{"type": "equal", "values": [...]}`. Days are 1 to 7 with Sunday as 1, hours are 0 to 23 in UTC |
+| `frequencycaps` (ads and campaigns) | `{"frequencyCapList": [cap, ...]}`, at most 5 caps. A cap is `{"entityType": "AD" or "CAMPAIGN", "eventType": "CSC" (render) or "CLK" (click), "userCap": true, "timeFrame": {"maxCount": n, "value": n, "timeWindowType": "MINUTE", "HOUR", "DAY" or "WEEK"}}`, all required, with a window of at most one week |
+
+Amounts are in whole units of the currency, more than 0, at most 1,000,000,000 and with at most 6 decimal places,
+because the ad server counts money in micros (millionths) in a 64-bit integer. CPD bids and caps across all users
+(`"userCap": false`) are not supported.
 - 401: `API_KEY` is set and the key is missing or wrong
 - 404: the id was not found
 - 502: creative storage (Supabase) could not be reached

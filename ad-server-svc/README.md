@@ -43,6 +43,10 @@ go test -v -race -cover ./...
 - If the cache has not been filled yet there is nothing to serve, so the
   answer is 204 and not an error.
 - Day and hour targeting use UTC, like the flight dates.
+- A cached ad or campaign that can't be decoded is logged and skipped, and the
+  rest still serve. ad-manager-svc checks these fields before storing them.
+- Bids and budgets are read as micros (millionths of the currency) straight from
+  the JSON text, never through a float, see `cache/money.go`.
 - Errors from Redis are logged. The caller only sees "internal error".
 
 ## Layout

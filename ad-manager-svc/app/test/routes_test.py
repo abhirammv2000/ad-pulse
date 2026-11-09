@@ -57,6 +57,45 @@ class RequestBodyTest(RouteTestCase):
         create_ad.assert_called_once_with({'adname': 'x'})
 
 
+class ValidationTest(RouteTestCase):
+    """A wrong JSON field is a 400 that names it, and nothing is stored."""
+
+    @patch('app.routes.ad_routes.create_ad')
+    def test_creating_an_ad_with_a_string_bid_is_a_400(self, create_ad):
+        response = self.client.post('/ad', json={'bidinfo': {'bid': '2', 'bidType': 'CPM'}})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json(), {'error': 'bidinfo.bid must be a number', 'field': 'bidinfo.bid'})
+        create_ad.assert_not_called()
+
+    @patch('app.routes.ad_routes.update_ad')
+    def test_updating_an_ad_is_checked_too(self, update_ad):
+        response = self.client.put('/ad', json={'adid': 'AD1', 'ad_unit_targeted': [[]]})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['field'], 'ad_unit_targeted[0]')
+        update_ad.assert_not_called()
+
+    @patch('app.routes.campaign_routes.create_campaign')
+    def test_creating_a_campaign_with_a_string_budget_is_a_400(self, create_campaign):
+        response = self.client.post('/campaign', json={'budget': {'dailyBudget': '10'}})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['field'], 'budget.dailyBudget')
+        create_campaign.assert_not_called()
+
+    @patch('app.routes.campaign_routes.update_campaign')
+    def test_updating_a_campaign_is_checked_too(self, update_campaign):
+        response = self.client.put('/campaign', json={'campaignid': 'C1', 'budget': {'currencyCode': 'EUR'}})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['field'], 'budget.currencyCode')
+        update_campaign.assert_not_called()
+
+    @patch('app.routes.campaign_routes.create_campaign', return_value={'campaignid': 'C1'})
+    def test_a_valid_campaign_reaches_the_service(self, create_campaign):
+        body = {'campaignname': 'x', 'budget': {'currencyCode': 'USD', 'dailyBudget': 2.5}}
+        response = self.client.post('/campaign', json=body)
+        self.assertEqual(response.status_code, 201)
+        create_campaign.assert_called_once_with(body)
+
+
 class StateChangeTest(RouteTestCase):
     def test_unknown_state_is_a_400(self):
         response = self.client.patch('/ad?ad_id=AD1&state=BOGUS')

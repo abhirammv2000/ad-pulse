@@ -8,6 +8,7 @@ from sqlalchemy.exc import DataError, IntegrityError
 from werkzeug.exceptions import HTTPException
 
 from app.auth import install_api_key_auth
+from app.validation import ValidationError
 from config import Config
 from config.db import init_db
 
@@ -70,6 +71,11 @@ def _violated_column(error):
 def register_error_handlers(app):
     """Return JSON for every error, so API clients never get an HTML page."""
 
+    @app.errorhandler(ValidationError)
+    def handle_validation_error(error):
+        # A JSON field the ad server reads has the wrong shape. See app/validation.py.
+        return jsonify({'error': str(error), 'field': error.field}), 400
+
     @app.errorhandler(IntegrityError)
     def handle_integrity_error(error):
         # A required column was empty, or an id points at a row that doesn't exist.
@@ -86,9 +92,10 @@ def register_error_handlers(app):
         # data, so this is a 400, not a 500. The database's own message is logged and not returned, because it
         # quotes the value and names internals.
         #
-        # The database is left to decide what is a valid value, on purpose. Postgres accepts more date formats
-        # than ISO 8601 and the dashboard sends numbers such as the ad priority as strings, so a stricter check
-        # written here would reject requests that work today.
+        # For typed columns the database is left to decide what is a valid value, on purpose. Postgres accepts
+        # more date formats than ISO 8601 and reads a number sent as a string, so a stricter check written here
+        # would reject requests that work today. JSONB columns have no type for Postgres to check, so those are
+        # checked in app/validation.py.
         log.warning("rejected request: %s", error.orig)
         return jsonify({'error': 'A value is in the wrong format for its field, for example a date or a number'}), 400
 
