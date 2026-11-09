@@ -9,6 +9,8 @@ adpulse:
   # See templates/secrets.yaml.
   secrets:
     databaseUrl: ""
+    # Must point at a replica set: the subscriber counts events in transactions, and exits at
+    # startup on a standalone server. Managed MongoDB (Atlas) always is one.
     mongodbUri: ""
     redisHost: ""
     redisPort: "6379"

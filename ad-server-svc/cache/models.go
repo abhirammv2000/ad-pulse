@@ -163,7 +163,10 @@ type Creative struct {
 	Assets       []CreativeAsset `json:"assets"`
 }
 
+// IIDData identifies one served bid. It travels in the click and render URLs,
+// signed, and the bid id is what lets each event be counted only once.
 type IIDData struct {
+	BidID            string `json:"bidid"`
 	AdID             string `json:"adid"`
 	CreativeID       string `json:"creativeid"`
 	AdUnitId         string `json:"adunitid"`

@@ -50,8 +50,23 @@ jobs:
           python -m coverage run --source=. --omit="*/test/*,migrations/*" -m unittest discover -s app/test -p "*_test.py"
           python -m coverage report
 
+      # The subscriber's exactly-once tests need a real replica set, because the guarantee lives in MongoDB's
+      # transactions. This is the same one-member set the Compose stack runs. The tests skip without it.
+      - name: Start a MongoDB replica set
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 40); do
+            if docker exec mongo mongosh --quiet --eval "try { rs.status() } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"; then
+              echo "primary after $i tries"; exit 0
+            fi
+            sleep 2
+          done
+          echo "MongoDB never became the primary"; docker logs mongo; exit 1
+
       - name: adpulse-engagement-subscriber-svc
         working-directory: adpulse-engagement-subscriber-svc
+        env:
+          MONGODB_TEST_URI: mongodb://localhost:27017/?replicaSet=rs0
         run: |
           python -m coverage run --source=. --omit="*/tests/*" -m unittest discover -s tests -p "*_test.py"
           python -m coverage report

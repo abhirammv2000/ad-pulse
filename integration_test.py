@@ -231,6 +231,11 @@ class TestAPI(unittest.TestCase):
         render_response = requests.get(renderURL)
         self.assertEqual(render_response.status_code, 200, f"Expected status code 200, but got {render_response.status_code}")
 
+        # Opening the same URLs again is accepted, and the subscriber still counts each event once.
+        for replay in (clickURL, clickURL, renderURL):
+            replay_response = requests.get(replay)
+            self.assertEqual(replay_response.status_code, 200, f"Expected a replay to be accepted, but got {replay_response.status_code}")
+
         # When the URLs are signed, the same URL without its signature must be refused.
         if 'sig=' in clickURL:
             unsigned_response = requests.get(clickURL.split('&sig=')[0])
@@ -242,10 +247,15 @@ class TestAPI(unittest.TestCase):
         while True:
             report_response = self.manager.get(self.ad_manager_host + '/reports/' + ad_id)
             report_rows = report_response.json() if report_response.status_code == 200 else []
-            if (report_rows and report_rows[0].get('click') == 1 and report_rows[0].get('render') == 1) \
+            if (report_rows and report_rows[0].get('click', 0) >= 1 and report_rows[0].get('render', 0) >= 1) \
                     or time.time() > deadline:
                 break
             time.sleep(1)
+
+        # The replays can arrive after the first events. Give them time to land, so a replay that was wrongly
+        # counted would show up below as a count of 2 or 3.
+        time.sleep(5)
+        report_response = self.manager.get(self.ad_manager_host + '/reports/' + ad_id)
         self.assertEqual(report_response.status_code, 200, f"Expected status code 200, but got {report_response.status_code}")
 
         report_response = report_response.json()

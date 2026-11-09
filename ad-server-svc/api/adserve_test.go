@@ -206,19 +206,74 @@ func TestAdserve_TrackingUrlsCarryTheAdIdentity(t *testing.T) {
 		if !strings.HasPrefix(tracking.url, tracking.prefix) {
 			t.Fatalf("url %q does not start with %q", tracking.url, tracking.prefix)
 		}
-		raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(tracking.url, tracking.prefix))
-		if err != nil {
-			t.Fatalf("iid is not base64: %v", err)
-		}
-		var iid cache.IIDData
-		if err := json.Unmarshal(raw, &iid); err != nil {
-			t.Fatalf("iid is not JSON: %v", err)
-		}
+		iid := iidFrom(t, tracking.url)
 		if iid.AdID != "AD1" || iid.CreativeID != "CR1" || iid.CampaignID != "C1" ||
 			iid.AdvertiserID != "A1" || iid.AdUnitId != "ADU1" || iid.RequestTimeStamp == 0 {
 			t.Errorf("iid has the wrong identity: %+v", iid)
 		}
+		// The bid id is what the subscriber uses to count each event once.
+		if iid.BidID == "" || iid.BidID != bid.Id {
+			t.Errorf("iid bid id = %q, want the bid's own id %q", iid.BidID, bid.Id)
+		}
 	}
+}
+
+func TestAdserve_EachBidHasItsOwnId(t *testing.T) {
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	server := newTestServer(t, store, adManager(t).URL)
+
+	first := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+	second := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+
+	if first.Id == second.Id || iidFrom(t, first.Ext.ClickUrl).BidID == iidFrom(t, second.Ext.ClickUrl).BidID {
+		t.Errorf("two serves of the same ad share a bid id: %s", first.Id)
+	}
+}
+
+func TestAdserve_TrackingUrlsSurviveAPlusInTheBase64(t *testing.T) {
+	store := newFakeStore()
+	// A '~' that falls on every third byte becomes '+' in base64, and three in a row make sure one does.
+	// Unescaped, a query string reads '+' as a space and the iid no longer decodes.
+	ad := liveAd("AD~~~", 1)
+	seedCampaign(t, store, ad)
+	server := newTestServer(t, store, adManager(t).URL)
+	server.config.TrackingSecret = "test-secret"
+
+	bid := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+
+	parsed, err := neturl.Parse(bid.Ext.ClickUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := parsed.Query().Get("iid")
+	if !strings.Contains(encoded, "+") {
+		t.Fatalf("the test needs an iid with + in its base64, got %s", encoded)
+	}
+	if got := iidFrom(t, bid.Ext.ClickUrl).AdID; got != ad.AdID {
+		t.Errorf("ad id came back as %q, want %q", got, ad.AdID)
+	}
+	if sig := parsed.Query().Get("sig"); sig != util.SignIID("test-secret", encoded) {
+		t.Errorf("the signature does not match the iid the engagement service will read")
+	}
+}
+
+// iidFrom reads the iid out of a tracking URL the way the engagement service does.
+func iidFrom(t *testing.T, trackingURL string) cache.IIDData {
+	t.Helper()
+	parsed, err := neturl.Parse(trackingURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(parsed.Query().Get("iid"))
+	if err != nil {
+		t.Fatalf("iid is not base64: %v", err)
+	}
+	var iid cache.IIDData
+	if err := json.Unmarshal(raw, &iid); err != nil {
+		t.Fatalf("iid is not JSON: %v", err)
+	}
+	return iid
 }
 
 func TestAdserve_BothParametersAreRequired(t *testing.T) {

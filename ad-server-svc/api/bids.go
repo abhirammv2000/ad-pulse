@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,8 +106,11 @@ func matchImpression(creative *cache.Creative, impressions []cache.Impression, t
 
 func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID string, bidParams cache.BidParams, requestTime int64) (cache.Bid, error) {
 	// The engagement service decodes this blob back out of the click and render
-	// URLs to attribute the event.
+	// URLs to attribute the event. Both URLs carry the same bid id, so one served
+	// bid can be counted for at most one click and one render.
+	bidID := uuid.New().String()
 	iid, err := json.Marshal(cache.IIDData{
+		BidID:            bidID,
 		AdID:             ad.AdID,
 		CreativeID:       ad.CreativeID,
 		AdUnitId:         bidParams.AdUnitId,
@@ -124,15 +128,17 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 	}
 
 	// With a tracking secret the URLs carry a signature, so the engagement
-	// service can tell a URL we issued from one somebody made up.
+	// service can tell a URL we issued from one somebody made up. The signature
+	// is over the base64 text, which is escaped for the URL: base64 can contain
+	// "+", and a query string would read that as a space.
 	encodedIID := base64.StdEncoding.EncodeToString(iid)
-	tracking := "?iid=" + encodedIID
+	tracking := "?iid=" + url.QueryEscape(encodedIID)
 	if server.config.TrackingSecret != "" {
 		tracking += "&sig=" + util.SignIID(server.config.TrackingSecret, encodedIID)
 	}
 
 	return cache.Bid{
-		Id:    uuid.New().String(),
+		Id:    bidID,
 		Impid: impID,
 		AdID:  ad.AdID,
 		Adm:   string(adm),
