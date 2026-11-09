@@ -33,6 +33,7 @@ type Server struct {
 	store      cache.Store
 	httpClient *http.Client
 	known      *knownEntities
+	now        func() time.Time // the clock budgets and pacing use, replaced in tests
 
 	// Decoded campaigns and ads, kept by their JSON text. See contentCache.
 	campaignsDecoded *contentCache[cache.CampaignList]
@@ -45,6 +46,7 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 		store:      store,
 		httpClient: &http.Client{Timeout: adManagerTimeout},
 		known:      newKnownEntities(),
+		now:        time.Now,
 
 		campaignsDecoded: newContentCache[cache.CampaignList](decodedCampaignListLimit),
 		adsDecoded:       newContentCache[cache.Ad](decodedAdLimit),

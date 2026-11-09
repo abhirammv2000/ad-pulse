@@ -28,9 +28,11 @@ const dateLayout = "2006-01-02T15:04:05"
 
 // fakeStore is an in-memory cache.Store.
 type fakeStore struct {
-	values map[string]string
-	hashes map[string]map[string]string
-	getErr error
+	values    map[string]string
+	hashes    map[string]map[string]string
+	getErr    error
+	mgetErr   error
+	mgetCalls int
 }
 
 func newFakeStore() *fakeStore {
@@ -55,6 +57,18 @@ func (f *fakeStore) Set(key, value string) error {
 
 func (f *fakeStore) HGetAll(key string) (map[string]string, error) {
 	return f.hashes[key], nil
+}
+
+func (f *fakeStore) MGet(keys []string) ([]string, error) {
+	f.mgetCalls++
+	if f.mgetErr != nil {
+		return nil, f.mgetErr
+	}
+	out := make([]string, len(keys))
+	for i, key := range keys {
+		out[i] = f.values[key]
+	}
+	return out, nil
 }
 
 func (f *fakeStore) GetCreatives(creativeID string) (*cache.Creative, error) {

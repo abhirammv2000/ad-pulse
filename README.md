@@ -2,7 +2,7 @@
 
 An ad-serving platform built from six small services. An ad manager lets you create publishers, advertisers, campaigns, ads and creatives. An ad server picks the best ad for a page slot. An engagement pipeline counts clicks and renders for each ad.
 
-**Status: finished.** No further development is planned. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
+**Status: working, and being extended** with the parts that involve money: exactly-once event counting and budgets are in, frequency caps and price ranking are next. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
 
 ```
 ad-manager-frontend -> ad-manager-svc -> Postgres
@@ -24,10 +24,10 @@ ad-manager-frontend -> ad-manager-svc -> Postgres
 |---|---|---|
 | [ad-manager-svc](ad-manager-svc/) | Python, Flask | CRUD for the six entities, the cache refresh endpoints, and `/reports` |
 | [ad-manager-frontend](ad-manager-frontend/) | React | Dashboard for the above, plus a page that requests and shows a live ad |
-| [ad-server-svc](ad-server-svc/) | Go, Gin | Filters cached ads by flight dates and targeting, ranks them, returns bids |
+| [ad-server-svc](ad-server-svc/) | Go, Gin | Filters cached ads by flight dates, targeting and budget, ranks them, returns bids |
 | [ad-refresh-cache-svc](ad-refresh-cache-svc/) | Python | Calls the manager's cache endpoints on a timer |
 | [adpulse-engagement-svc](adpulse-engagement-svc/) | Go, Gin | Takes click and render pings and publishes them to Pub/Sub |
-| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Reads Pub/Sub and keeps click and render counts per ad in MongoDB |
+| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Reads Pub/Sub, counts each click and render once in MongoDB, and adds up spend for the budgets |
 | [ad-devops](ad-devops/) | Helm, Docker Compose | The Kubernetes chart and the local stack |
 
 ## Run it

@@ -49,6 +49,47 @@ go test -v -race -cover ./...
   the JSON text, never through a float, see `cache/money.go`.
 - Errors from Redis are logged. The caller only sees "internal error".
 
+## Budgets and pacing
+
+An ad and its campaign can each have a total and a daily budget. Before ranking, the
+server reads what every budgeted candidate has spent, in one `MGET`, and skips an ad if
+it or its campaign:
+
+- has spent its total budget, or today's budget (days are UTC), or
+- is ahead of pace: today's spend is more than the daily budget times the share of the
+  day gone by, plus one hour. That spreads a daily budget over the day instead of
+  spending it by mid-morning, and the hour lets each day start.
+
+Ads and campaigns with no budget are not read at all. With a budget on all 1,000 ads of
+the 50 x 20 benchmark (`BenchmarkAdserveWithBudgets`), a request costs about 0.7 ms more
+CPU and one more Redis call, 53 instead of 52.
+
+The auction is first price: the winner pays its bid. A render of a CPM ad costs a
+thousandth of the bid, and a click of a CPC ad costs the whole bid. That price goes into
+the signed tracking URLs, so editing an ad's bid never changes what its earlier events
+cost. adpulse-engagement-subscriber-svc adds it up, exactly once per event, and copies
+the totals into Redis as `spend:ad:<id>`, `spend:ad:<id>:<yyyy-mm-dd>` and the same for
+the campaign. Money is counted in nanos, a thousandth of a micro, so the price of a CPM
+render is always a whole number.
+
+**An ad can overspend a little.** Spend is recorded when a render or click arrives, not
+when the ad is served. Between serving the ad that reaches the budget and that event
+being counted, the ad keeps serving:
+
+```
+overspend <= price per event x events in flight
+events in flight ~= the ad's serve rate x (time until the render or click + pipeline delay)
+```
+
+For a $1 CPM ad serving 1,000 times a second, with a second from serve to counted
+spend, that is about 1,000 x $0.001 = $1. A CPC ad can overspend more, because a click
+can come minutes after the ad was served. Google Ads makes the same kind of trade: a day
+can spend up to twice the daily budget, and the month is capped. Getting closer to zero
+would mean reserving the price when the ad is served and releasing what never renders.
+
+If Redis loses the totals, an ad reads as having spent nothing until its next billable
+event writes the true total back from MongoDB, so the same in-flight bound applies.
+
 ## Layout
 
 - `api/adserve.go`: the `/adserve` handler: collects eligible ads across every

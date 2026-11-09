@@ -36,6 +36,24 @@ refused. The 24 hours between the limits cover clocks on different machines that
 disagree. The serve time is in the signed iid, so it can't be faked. The cost is
 that an event stuck in a backlog for over 48 hours is not counted.
 
+## Spend
+
+A billable event is a render of a CPM ad or a click of a CPC ad. Its price, set by the
+ad server and carried in the signed iid as `pricenanos`, is added in the same
+transaction to four totals in the `spend` collection: the ad's and the campaign's,
+overall and for the UTC day the ad was served. Using the serve day means a redelivered
+event always lands on the same day.
+
+After the commit the new totals are copied to Redis (`spend:ad:<id>`,
+`spend:ad:<id>:<day>` and the same for the campaign), where the ad server checks
+budgets. A small Lua script writes a total only if it is larger than what is there.
+Totals only grow, so the larger value is right in whatever order two copies arrive, and
+the values are compared as text, because Lua numbers are doubles and lose whole numbers
+past 2^53 nanos (about $9 million). If Redis fails, the message is nacked, and its
+redelivery is a duplicate that copies the totals again without charging twice. Daily
+totals expire from Redis after 48 hours and overall totals 30 days after they last
+grew. MongoDB keeps them all.
+
 **MongoDB has to be a replica set**, because a standalone server does not run
 transactions. The service checks this when it starts and exits with a message if
 it is not. One member is fine for development, and the Compose stack runs one.
@@ -51,6 +69,8 @@ Use three in production. Managed MongoDB (Atlas) is always a replica set.
 | `CSC_SUBSCRIPTION_ID` | `csc-service-topic-sub` | Pub/Sub subscription for renders |
 | `MONGODB_URI` | none (required) | MongoDB connection string, for a replica set |
 | `MONGODB_DATABASE` | `ad_pulse` | Mongo database name |
+| `REDIS_HOST` | `localhost` | Redis the ad server reads spend from |
+| `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD` | `6379`, none, none | Redis connection |
 
 ## Running
 
@@ -75,15 +95,21 @@ python -m unittest discover -s tests -p "*_test.py"
 ```
 
 Most tests use fake messages and need nothing else. The exactly-once tests need a
-real replica set, and skip without one:
+real replica set and the spend tests also need Redis. Both skip without them:
 
 ```
 docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
 docker exec mongo mongosh --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]})"
-MONGODB_TEST_URI="mongodb://localhost:27017/?replicaSet=rs0" python -m unittest discover -s tests -p "*_test.py"
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+MONGODB_TEST_URI="mongodb://localhost:27017/?replicaSet=rs0" REDIS_TEST_URL="redis://localhost:6379/0" \
+  python -m unittest discover -s tests -p "*_test.py"
 ```
 
 They count a replayed event, an event delivered again after its commit, and the
 same event arriving on twelve threads at once, and check that each is counted
 once. One also fails the second write mid-transaction and checks that the first
-is rolled back. CI runs them against the same kind of replica set.
+is rolled back. The spend tests check that a replay is never charged twice, that
+twelve events of one ad at once add up exactly, that a failed copy to Redis is
+repaired by the redelivery, and that a later, smaller total never overwrites a
+larger one, including past 2^53. CI runs them against the same kind of replica
+set and Redis.

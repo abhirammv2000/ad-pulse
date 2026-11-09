@@ -163,10 +163,14 @@ services:
       GCP_PROJECT_ID: adpulse-local
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       MONGODB_URI: mongodb://mongodb:27017
+      # Spend totals are copied here for the ad server's budget check.
+      REDIS_HOST: redis
     depends_on:
       pubsub-init:
         condition: service_completed_successfully
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   ad-manager-frontend:

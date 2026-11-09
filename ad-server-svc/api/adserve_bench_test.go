@@ -57,10 +57,15 @@ func (l latencyStore) GetCreatives(id string) (*cache.Creative, error) {
 	l.wait()
 	return l.Store.GetCreatives(id)
 }
+func (l latencyStore) MGet(keys []string) ([]string, error) {
+	l.wait()
+	return l.Store.MGet(keys)
+}
 
 // benchWorld builds a cache with the given number of live campaigns, each holding adsPerCampaign ads that all use the
-// same 300x250 creative, and returns a server whose manager lookups are already remembered.
-func benchWorld(tb testing.TB, campaigns, adsPerCampaign int, delay time.Duration) (*Server, *callCounter) {
+// same 300x250 creative, and returns a server whose manager lookups are already remembered. With a budget, every ad
+// has that daily and total budget and a little spend recorded, so every request reads spend for all of them.
+func benchWorld(tb testing.TB, campaigns, adsPerCampaign int, delay time.Duration, budget cache.Money) (*Server, *callCounter) {
 	tb.Helper()
 	store := newFakeStore()
 	start, end := window(-time.Hour, time.Hour)
@@ -73,6 +78,11 @@ func benchWorld(tb testing.TB, campaigns, adsPerCampaign int, delay time.Duratio
 			ad := cache.Ad{
 				AdID: fmt.Sprintf("%s-AD%d", id, a), CampaignID: id, AdvertiserID: "A1", CreativeID: "CR1",
 				StartDate: start, EndDate: end, AdPriority: a % 7, LandingURL: "http://landing",
+			}
+			if budget > 0 {
+				ad.Budget.DailyBudget, ad.Budget.TotalBudget = budget, budget
+				store.values[spendKey("ad", ad.AdID)] = "1000"
+				store.values[dailySpendKey("ad", ad.AdID, time.Now().UTC().Format("2006-01-02"))] = "1000"
 			}
 			raw, err := json.Marshal(ad)
 			if err != nil {
@@ -126,7 +136,7 @@ func serveOnce(server *Server, body []byte) int {
 func BenchmarkAdserve(b *testing.B) {
 	for _, size := range []struct{ campaigns, ads int }{{1, 10}, {10, 20}, {50, 20}} {
 		b.Run(fmt.Sprintf("%dcampaigns_x_%dads", size.campaigns, size.ads), func(b *testing.B) {
-			server, _ := benchWorld(b, size.campaigns, size.ads, 0)
+			server, _ := benchWorld(b, size.campaigns, size.ads, 0, 0)
 			body := benchRequestBody(b)
 			if code := serveOnce(server, body); code != http.StatusOK {
 				b.Fatalf("status %d", code)
@@ -140,9 +150,33 @@ func BenchmarkAdserve(b *testing.B) {
 	}
 }
 
+// BenchmarkAdserveWithBudgets is the 50 x 20 case with a budget on every ad, the most spend there is to read and
+// check. Compare it with BenchmarkAdserve/50campaigns_x_20ads and BenchmarkAdserveRoundTrips/50campaigns.
+func BenchmarkAdserveWithBudgets(b *testing.B) {
+	for _, run := range []struct {
+		name  string
+		delay time.Duration
+	}{{"cpu", 0}, {"round_trips", 200 * time.Microsecond}} {
+		b.Run(run.name, func(b *testing.B) {
+			server, counter := benchWorld(b, 50, 20, run.delay, 1000*dollar)
+			body := benchRequestBody(b)
+			if code := serveOnce(server, body); code != http.StatusOK {
+				b.Fatalf("status %d", code)
+			}
+			counter.n = 0
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				serveOnce(server, body)
+			}
+			b.ReportMetric(float64(counter.n)/float64(b.N), "cache_calls/op")
+		})
+	}
+}
+
 // BenchmarkAdserveParallel runs requests from all cores at once, which is where a shared lock would show.
 func BenchmarkAdserveParallel(b *testing.B) {
-	server, _ := benchWorld(b, 10, 20, 0)
+	server, _ := benchWorld(b, 10, 20, 0, 0)
 	body := benchRequestBody(b)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -158,7 +192,7 @@ func BenchmarkAdserveParallel(b *testing.B) {
 func BenchmarkAdserveRoundTrips(b *testing.B) {
 	for _, campaigns := range []int{1, 10, 50} {
 		b.Run(fmt.Sprintf("%dcampaigns", campaigns), func(b *testing.B) {
-			server, counter := benchWorld(b, campaigns, 20, 200*time.Microsecond)
+			server, counter := benchWorld(b, campaigns, 20, 200*time.Microsecond, 0)
 			body := benchRequestBody(b)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

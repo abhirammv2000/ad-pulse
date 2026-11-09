@@ -111,6 +111,8 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 	bidID := uuid.New().String()
 	iid, err := json.Marshal(cache.IIDData{
 		BidID:            bidID,
+		BidType:          ad.BidInfo.BidType,
+		PriceNanos:       priceNanos(ad),
 		AdID:             ad.AdID,
 		CreativeID:       ad.CreativeID,
 		AdUnitId:         bidParams.AdUnitId,

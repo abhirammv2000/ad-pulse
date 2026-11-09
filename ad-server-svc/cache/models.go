@@ -165,8 +165,14 @@ type Creative struct {
 
 // IIDData identifies one served bid. It travels in the click and render URLs,
 // signed, and the bid id is what lets each event be counted only once.
+//
+// BidType and PriceNanos say what the bid costs: a render for CPM, a click for
+// CPC. They are fixed when the ad is served, so changing an ad's bid later never
+// changes what its earlier events cost.
 type IIDData struct {
 	BidID            string `json:"bidid"`
+	BidType          string `json:"bidtype"`
+	PriceNanos       int64  `json:"pricenanos"`
 	AdID             string `json:"adid"`
 	CreativeID       string `json:"creativeid"`
 	AdUnitId         string `json:"adunitid"`

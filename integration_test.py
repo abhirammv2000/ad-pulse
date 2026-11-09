@@ -134,6 +134,61 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(activate.status_code, 200, f"creative activate failed: {activate.status_code} {activate.text}")
         return creative_id
 
+    def _refresh_cache(self):
+        for path in ('/cache/campaigns', '/cache/creatives', '/cache/ads'):
+            response = self.manager.get(self.ad_manager_host + path)
+            self.assertEqual(response.status_code, 200, f"cache refresh {path} failed: {response.status_code}")
+
+    def test_an_ad_stops_serving_once_its_budget_is_spent(self):
+        publisher_id = self._create_publisher()
+        advertiser_id = self._create_advertiser()
+        ad_unit_id = self._create_ad_unit(publisher_id)
+        campaign_id = self._create_active_campaign(advertiser_id)
+        creative_id = self._create_creative(advertiser_id)
+
+        # A $1 CPM bid pays $0.001 a render, so this budget is spent by exactly one render.
+        ad_response = self.manager.post(self.ad_manager_host + '/ad', json={
+            "ad_unit_targeted": [ad_unit_id],
+            "adname": "Integration Test Budget Ad",
+            "adpriority": 1,
+            "adtype": "NON_GUARANTEED",
+            "advertiserid": advertiser_id,
+            "bidinfo": {"bid": 1, "bidType": "CPM"},
+            "budget": {"currencyCode": "USD", "totalBudget": 0.001},
+            "campaignid": campaign_id,
+            "creativeid": creative_id,
+            "enddate": FLIGHT_END,
+            "landingurl": "example.com",
+            "startdate": FLIGHT_START,
+            "createdby": "integration-test",
+            "updatedby": "integration-test",
+        })
+        self.assertEqual(ad_response.status_code, 201, f"ad create failed: {ad_response.status_code} {ad_response.text}")
+        ad_id = ad_response.json()['ad']['adid']
+        activate = self.manager.patch(self.ad_manager_host + '/ad', params={'ad_id': ad_id, 'state': 'ACTIVE'})
+        self.assertEqual(activate.status_code, 200)
+        self._refresh_cache()
+
+        serve_params = {'adunit_id': ad_unit_id, 'publisher_id': publisher_id}
+        first = requests.post(self.ad_server_host + '/adserve', params=serve_params, json=ad_serve_payload)
+        self.assertEqual(first.status_code, 200, f"the ad should serve while it has budget: {first.status_code} {first.text}")
+        self.assertEqual(first.json()['bid'][0]['adid'], ad_id)
+
+        render = requests.get(first.json()['bid'][0]['ext']['renderUrl'])
+        self.assertEqual(render.status_code, 200)
+
+        # The render reaches the subscriber through Pub/Sub, and its price reaches Redis after the commit. Until
+        # then the ad keeps serving, which is the in-flight overspend the ad server README describes.
+        deadline = time.time() + 30
+        while True:
+            again = requests.post(self.ad_server_host + '/adserve', params=serve_params, json=ad_serve_payload)
+            if again.status_code == 204 or time.time() > deadline:
+                break
+            time.sleep(1)
+        self.assertEqual(again.status_code, 204, f"the ad should stop once its budget is spent, got {again.status_code}")
+
+        self.manager.patch(self.ad_manager_host + '/ad', params={'ad_id': ad_id, 'state': 'INACTIVE'})
+
     def test_workflow(self):
         ad_creation_endpoint = '/ad'
         cache_refresh_endpoint = '/cache'

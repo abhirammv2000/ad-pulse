@@ -56,6 +56,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 	// once. Ranking inside the loop would score each campaign against only a
 	// prefix of the candidates.
 	var activeAds []cache.Ad
+	liveCampaigns := map[string]cache.Campaign{}
 	for _, campaign := range campaignList {
 		startDate, err := util.GetTime(campaign.StartDate)
 		if err != nil {
@@ -70,6 +71,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 		if !util.WithinDuration(startDate, endDate) {
 			continue
 		}
+		liveCampaigns[campaign.CampaignID] = campaign
 
 		ads, err := server.store.HGetAll(campaign.CampaignID)
 		if err != nil {
@@ -87,6 +89,12 @@ func (server *Server) adserve(ctx *gin.Context) {
 				activeAds = append(activeAds, adObj)
 			}
 		}
+	}
+
+	activeAds, err = server.withinBudget(activeAds, liveCampaigns)
+	if err != nil {
+		internalError(ctx, err)
+		return
 	}
 
 	if len(activeAds) == 0 {

@@ -18,6 +18,8 @@ type Store interface {
 	Set(key string, value string) error
 	HGetAll(key string) (map[string]string, error)
 	GetCreatives(creativeID string) (*Creative, error)
+	// MGet reads many keys in one round trip. A missing key comes back as "".
+	MGet(keys []string) ([]string, error)
 }
 
 type RedisStore struct {
@@ -42,6 +44,20 @@ func (store *RedisStore) Set(key string, value string) error {
 
 func (store *RedisStore) HGetAll(key string) (map[string]string, error) {
 	return store.rdb.HGetAll(context.Background(), key).Result()
+}
+
+func (store *RedisStore) MGet(keys []string) ([]string, error) {
+	values, err := store.rdb.MGet(context.Background(), keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(values))
+	for i, value := range values {
+		if text, ok := value.(string); ok {
+			out[i] = text
+		}
+	}
+	return out, nil
 }
 
 func (store *RedisStore) GetCreatives(creativeID string) (*Creative, error) {
