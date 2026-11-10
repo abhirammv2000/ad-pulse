@@ -77,11 +77,14 @@ adpulse-engagement-svc: check the signature, refuse an ad served over 24 h ago o
 Pub/Sub (at least once)
    |
    v
-adpulse-engagement-subscriber-svc, in one MongoDB transaction:
-   upsert inbox record "<click or render>:<bid id>"   <- already there: a duplicate, stop
-   $inc the report's click or render count
-   $inc spend, in nanos, for the ad and the campaign, overall and for the serve day
-   commit, then copy spend to Redis, add the event to the user's cap counters, then ack
+adpulse-engagement-subscriber-svc
+   record: insert inbox record "<click or render>:<bid id>" with its ad, campaign, serve
+           time and price   <- the _id already exists: a duplicate
+           add the event to the user's cap counters, then ack
+   fold, a loop, in one MongoDB transaction per batch of up to 1,000 recorded events:
+           $inc each report row and each spend total (in nanos) once for the whole batch
+           mark the events folded
+           commit, then copy the new spend totals to Redis
 ```
 
 ad-manager-svc's cache job, every 15 seconds, also puts each CPC ad's clicks and renders
@@ -95,19 +98,33 @@ for at most one click and one render. The iid is signed, so none of it can be ch
 the browser. It is also URL-escaped: base64 can contain `+`, which a query string reads as a
 space.
 
-**The transactional inbox.** The subscriber upserts the event id into an `inbox` collection
-with `$setOnInsert`, and only if it was new adds the count and the spend. All of it is one
-MongoDB transaction, committed before the ack:
+**Recording.** The subscriber inserts each event into an `inbox` collection with the event id
+as its `_id`, along with what the event adds: its ad, campaign, serve time and price. A
+second copy fails on the unique `_id`, so a replay or a redelivery is never recorded twice.
+The insert happens before the ack, so if the worker dies in between, the redelivery finds
+the record and is only acked. Recording writes one new document per event and nothing else.
 
-| Crash point | What the redelivery does |
+**Folding.** A loop takes up to 1,000 recorded events that are not folded yet, oldest first,
+and in one MongoDB transaction adds them up, applies one `$inc` per report row and spend
+total, and marks them folded. An event is counted only by the transaction that marks it:
+
+| Failure | What happens |
 |---|---|
-| Before the commit | Nothing was written. It is counted normally |
-| After the commit, before the ack | It finds the inbox record and is only acked |
+| A fold fails before its commit | Nothing was written. The next fold takes the same events |
+| Two folds pick the same events | They collide on those records. One commits, the other retries without them |
+| A fold commits, then copying to Redis fails | MongoDB is right. The next fold of that ad copies the totals |
 
 PyMongo's `with_transaction` may run its callback again after a transient error such as a
-write conflict, so the callback only writes inside the transaction. Redis is never touched
-inside it. Two workers given the same message collide on the inbox id: one commits, the
-other retries and finds it.
+write conflict, so the callback only writes inside the transaction.
+
+**Why two steps, a change found by the load test.** The first build did the dedupe, the count
+and the spend in one transaction per event. Every event of a busy ad then updated the same
+few documents, so concurrent events conflicted and retried, about 4 attempts each, and one
+hot ad could be counted at only 65 events a second. Recording plus folding takes the conflict
+out of the path every event goes through: an insert never conflicts with another event's
+insert, and a fold of 1,000 events touches each total once. Section 10 has both
+measurements. Records written by the first build have no `folded` field, so a fold never
+picks them up: they were counted when they were written.
 
 MongoDB has to be a replica set, because a standalone server does not run transactions
 ([MongoDB docs](https://www.mongodb.com/docs/manual/core/transactions-production-consideration/)).
@@ -135,14 +152,14 @@ which keeps nanos far inside an int64.
 render costs bid / 1000, and a CPC click costs the bid. The price and bid type are fixed in
 the signed iid at serve time, so editing a bid never re-prices events already served.
 
-**Where spend lives.** MongoDB holds the record: four `spend` documents per event (ad and
-campaign, overall and for the UTC serve day), written in the counting transaction. After the
-commit, the new totals go to Redis through a Lua script that only ever raises a value. Totals
-only grow, so the larger value is right whatever order two copies arrive in. The script
-compares the values as text, because Lua numbers are doubles and lose whole numbers past
-2^53 nanos, about $9 million. A failed copy nacks the message, and the redelivery is a
-duplicate that copies again without charging twice. If Redis loses the totals, the next
-event for that ad writes them back.
+**Where spend lives.** MongoDB holds the record: four `spend` documents per ad (ad and
+campaign, overall and for the UTC serve day), added to by the fold. After each fold commits,
+the new totals go to Redis through a Lua script that only ever raises a value. Totals only
+grow, so the larger value is right whatever order two copies arrive in. The script compares
+the values as text, because Lua numbers are doubles and lose whole numbers past 2^53 nanos,
+about $9 million. If a copy fails, or Redis loses the totals, the ad reads as having spent
+less than it has, so it keeps serving, and the fold of its next event writes the true totals
+back.
 
 **The check.** Before ranking, the ad server reads the spend of every budgeted candidate in
 one `MGET`. Unbudgeted ads cost no read. It skips an ad if the ad or its campaign has spent
@@ -158,10 +175,10 @@ overspend <= price per event x events in flight
 events in flight ~= the ad's serve rate x (time until the render or click + pipeline delay)
 ```
 
-`subscriber_serve_to_count_seconds` measures the pipeline delay. The bound holds only while
-the subscriber keeps up. Section 10 has a load test where one hot ad outran it and spent
-368% over budget, and the cause. A reservation at serve time would bring overspend near zero
-whatever the delay.
+`subscriber_serve_to_count_seconds` measures the pipeline delay. The bound only holds while
+the subscriber keeps up: section 10 has a load test where the first build fell behind and
+spent 368% over budget, and the same test after the change, at 7.9%. A reservation at serve
+time would bring overspend near zero whatever the delay.
 
 ## 6. Frequency caps
 
@@ -251,11 +268,14 @@ the server already answered for any Redis error, and either way nothing is serve
 | | `adserver_request_duration_seconds` | histogram |
 | | `adserver_ads_skipped_total` | `reason`: total_budget, daily_budget, pacing, spend_unreadable, frequency_cap, no_user_id, unusable_cap |
 | adpulse-engagement-svc, `/metrics` | `engagement_events_total` | `event`: click, render. `result`: accepted, bad_signature, too_old, bad_request, publish_failed, error |
-| adpulse-engagement-subscriber-svc, `:9102/metrics` | `subscriber_events_total` | `event`, `result`: counted, duplicate, too_old, malformed, failed |
-| | `subscriber_serve_to_count_seconds` | histogram, the pipeline delay in the overspend bound |
+| adpulse-engagement-subscriber-svc, `:9102/metrics` | `subscriber_events_total` | `event`, `result`: recorded, duplicate, too_old, malformed, failed |
+| | `subscriber_serve_to_count_seconds` | histogram, serve to folded: the pipeline delay in the overspend bound |
+| | `subscriber_fold_failures_total` | folds that failed and are retried |
 
 Every label has a fixed set of values, so no request can create a series. `duplicate` above
-zero shows the exactly-once logic doing its job. `too_old` above zero should alert.
+zero shows the exactly-once logic doing its job. `too_old` above zero, a rising
+`subscriber_fold_failures_total`, or a serve-to-count delay of more than a few seconds
+should alert: the last means the folds are falling behind and budgets will overshoot.
 
 ## 10. Capacity and a measured run
 
@@ -268,46 +288,49 @@ the inbox by event id.
 
 Measured with `loadtest.py` against the Compose stack on one laptop: 16 threads ask for one
 CPM ad ($1 CPM, $1 total budget, so 1,000 renders) and render every ad they are served, until
-it stops serving.
+it stops serving. The first build, counting each event in its own transaction, then the
+same test after the change to recording and folding:
 
-| | |
-|---|---|
-| requests | 5,581 in 23.9 s of serving, 196 bids a second, then 903 answered with no bid |
-| latency, every request | p50 57 ms, p95 74 ms, p99 88 ms (mostly the Python client and Docker networking on one laptop) |
-| renders sent and counted | 4,678 and 4,678, so nothing was lost or counted twice |
-| spent against the budget | $4.68 against $1.00: **368% over** |
-| serve to counted (`subscriber_serve_to_count_seconds`) | mean 28 s, half over 30 s, the slowest about 60 s |
-
-**What the run found.** The overspend is far past the bound's estimate because the pipeline
-delay was not a second but grew to a minute. The subscriber could not keep up: every render
-of this one ad updates the same four spend documents and the same report row inside a
-transaction, so its worker threads keep hitting write conflicts and retrying. Measured
-directly against the same MongoDB, with the subscriber's own `record_event` on 10 threads:
-
-| 2,000 billable renders | events a second | transaction attempts per event |
+| | one transaction per event | record, then fold |
 |---|---|---|
-| all for one ad | 65 | 4.23 |
-| spread over 2,000 ads | 280 | 1.00 |
+| bids before the budget stopped the ad | 4,678 over 23.9 s, 196 a second | 1,079 over 4.8 s, 226 a second |
+| latency, every request | p50 57 ms, p95 74 ms, p99 88 ms | p50 52 ms, p95 63 ms, p99 67 ms |
+| renders sent and counted | 4,678 and 4,678 | 1,079 and 1,079 |
+| serve to counted (`subscriber_serve_to_count_seconds`) | mean 28 s, the slowest about 60 s | mean 0.8 s, all within 2 s |
+| spent against the $1 budget | $4.68, **368% over** | $1.079, **7.9% over** |
 
-So the bound in section 5 holds only while the subscriber keeps up. One hot ad above about 65
-renders a second outruns it, the backlog grows, and so does the overspend. The fix is a known
-pattern and is not built yet: count in small batches, so one transaction applies many events
-and their totals with one `$inc` per document, or split each hot total into shards that are
-summed when read. Either keeps exactly-once, because the inbox records stay in the same
-transaction as the counts.
+Latency is mostly the Python client and Docker networking on one laptop. In both runs every
+render was counted exactly once.
 
-The run also found that a manager answering 500 (its database dropped connections under the
-load) was reported by the ad server as "publisher not found". It is now a 502.
+**What the first run found.** The overspend was far past the bound because the delay grew
+to a minute: the subscriber could not keep up. Every render of the one ad updated the same
+spend documents and report row inside its own transaction, so the worker threads kept
+hitting write conflicts and retrying. Measured directly against the same MongoDB, 2,000
+billable renders from 10 threads, before and after the change:
+
+| | one transaction per event | record, then fold |
+|---|---|---|
+| all for one ad | 65 events a second, 4.23 transaction attempts each | 1,711 events a second, recorded to counted |
+| spread over 2,000 ads | 280 events a second, 1.00 attempts each | 1,251 events a second |
+
+A busy ad is now the fast case, because a batch touches each of its totals once. After the
+change the overspend matches the bound: 226 bids a second with under a second of delay
+allows a couple of hundred renders in flight, and 79 went over. The totals came out exact in
+every run.
+
+The first run also found that a manager answering 500 (its database dropped connections
+under the load) was reported by the ad server as "publisher not found". It is now a 502.
 
 ## 11. Tests that prove the guarantees
 
 - **Exactly once:** the subscriber's tests run against a real replica set in CI. A replay
-  (5 times), a redelivery after the commit, and the same event on 12 threads at once are each
-  counted once. A failure between the two writes leaves nothing behind. Removing the duplicate
-  check, or the transaction, makes these fail.
+  (5 times), a redelivery after recording, and the same event on 12 threads at once are each
+  counted once. A fold that fails part way leaves nothing behind, and four folds running over
+  the same 600-event backlog at once count every event exactly once. Not marking events
+  folded, or folding outside a transaction, makes these fail.
 - **Spend:** a replay is never charged twice, 12 concurrent events of one ad add up exactly, a
-  failed Redis copy is repaired by the redelivery, and a later smaller total never wins,
-  including past 2^53. Each of these was checked against a deliberately broken copy.
+  failed Redis copy is repaired by the next fold of that ad, and a later smaller total never
+  wins, including past 2^53. Each of these was checked against a deliberately broken copy.
 - **Caps:** the window edge to the second, per user, per campaign, no user id, and the 1,000
   event bound.
 - **End to end**, through the Compose stack in CI: replayed URLs count once, an ad with a
@@ -327,10 +350,10 @@ Each step was one pull request, complete and tested by itself.
 | #9 | Frequency caps |
 | #10 | Ranking by price, the heap, dates parsed once, Redis deadlines |
 | #11 | Metrics, the load test and this document |
+| #12 | Recording and folding, after the load test showed a busy ad outrunning per-event transactions |
 
 ## 13. What is not built
 
-- Batched or sharded counting in the subscriber, so one hot ad can't outrun it (section 10).
 - A reservation at serve time, which would bring overspend near zero.
 - Exploration traffic for CPC ads whose rate starts low.
 - Caps across all users, CPD pricing, more than one currency.

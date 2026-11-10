@@ -98,8 +98,8 @@ class ChargeTest(unittest.TestCase):
                 self.assertEqual(app.charge(event_type, engagement(bid_type=bid_type, price=1000)), want)
 
     def test_the_ad_and_the_campaign_are_charged_in_total_and_for_the_day_the_ad_was_served(self):
-        served = datetime(2026, 11, 7, 23, 59, 30, tzinfo=timezone.utc)
-        ids = [spend_id for spend_id, _ in app.spend_totals(engagement(served_at=served))]
+        served = int(datetime(2026, 11, 7, 23, 59, 30, tzinfo=timezone.utc).timestamp())
+        ids = [spend_id for spend_id, _ in app.spend_totals('AD1', 'C1', served)]
         self.assertEqual(ids, ['ad:AD1', 'ad:AD1:2026-11-07', 'campaign:C1', 'campaign:C1:2026-11-07'])
 
 
@@ -114,12 +114,12 @@ class CounterKeysTest(unittest.TestCase):
 
 
 class TooOldTest(unittest.TestCase):
-    def test_an_event_served_more_than_48_hours_ago_is_not_counted_and_nothing_is_touched(self):
-        client, database, redis_client = Mock(), Mock(), Mock()
+    def test_an_event_served_more_than_48_hours_ago_is_not_recorded_and_nothing_is_touched(self):
+        database, redis_client = Mock(), Mock()
         event = engagement(served_at=NOW - timedelta(hours=48, seconds=1))
-        result = app.record_event(client, database, redis_client, 'click', event, NOW)
+        result = app.record_event(database, redis_client, 'click', event, NOW)
         self.assertEqual(result, 'too_old')
-        client.start_session.assert_not_called()
+        database.inbox.insert_one.assert_not_called()
         redis_client.pipeline.assert_not_called()
 
     def test_the_count_window_ends_before_the_inbox_forgets(self):
@@ -129,15 +129,15 @@ class TooOldTest(unittest.TestCase):
 
 class CallbackTest(unittest.TestCase):
     def setUp(self):
-        self.callback = app.make_callback(Mock(), Mock(), Mock(), 'click')
+        self.callback = app.make_callback(Mock(), Mock(), 'click')
 
-    @patch('app.record_event', return_value='counted')
-    def test_a_counted_event_is_acked(self, record):
+    @patch('app.record_event', return_value='recorded')
+    def test_a_recorded_event_is_acked(self, record):
         message = message_with(event_body())
         self.callback(message)
         message.ack.assert_called_once()
         message.nack.assert_not_called()
-        self.assertEqual(record.call_args.args[3:5], ('click', app.Engagement('AD7', 'C1', 'B1', NOW, '', 0)))
+        self.assertEqual(record.call_args.args[2:4], ('click', app.Engagement('AD7', 'C1', 'B1', NOW, '', 0)))
 
     @patch('app.record_event', return_value='duplicate')
     def test_a_duplicate_is_acked(self, _):
@@ -152,7 +152,7 @@ class CallbackTest(unittest.TestCase):
         message.ack.assert_called_once()
 
     @patch('app.record_event')
-    def test_a_bad_event_is_acked_without_trying_to_count_it(self, record):
+    def test_a_bad_event_is_acked_without_trying_to_record_it(self, record):
         message = message_with(b'{not json')
         self.callback(message)
         record.assert_not_called()
@@ -167,6 +167,28 @@ class CallbackTest(unittest.TestCase):
         message.ack.assert_not_called()
 
 
+class FoldForeverTest(unittest.TestCase):
+    def test_a_failed_fold_is_counted_and_the_loop_keeps_going(self):
+        from prometheus_client import REGISTRY
+
+        failures = REGISTRY.get_sample_value('subscriber_fold_failures_total') or 0
+        stop = threading.Event()
+        calls = []
+
+        def fold(*_):
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError('mongo is down')
+            stop.set()
+            return 0
+
+        with patch('app.fold', side_effect=fold), patch.object(app, 'FOLD_INTERVAL', 0):
+            app.fold_forever(Mock(), Mock(), Mock(), stop)
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual((REGISTRY.get_sample_value('subscriber_fold_failures_total') or 0) - failures, 1)
+
+
 class MetricsTest(unittest.TestCase):
     """The metrics are global, so these compare counts before and after."""
 
@@ -175,16 +197,11 @@ class MetricsTest(unittest.TestCase):
 
         return REGISTRY.get_sample_value('subscriber_events_total', {'event': 'click', 'result': result}) or 0
 
-    def delays(self):
-        from prometheus_client import REGISTRY
-
-        return REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_count') or 0
-
     def test_every_outcome_is_counted(self):
-        callback = app.make_callback(Mock(), Mock(), Mock(), 'click')
-        before = {r: self.count(r) for r in ('counted', 'duplicate', 'too_old', 'malformed', 'failed')}
+        callback = app.make_callback(Mock(), Mock(), 'click')
+        before = {r: self.count(r) for r in ('recorded', 'duplicate', 'too_old', 'malformed', 'failed')}
 
-        for result in ('counted', 'duplicate', 'too_old'):
+        for result in ('recorded', 'duplicate', 'too_old'):
             with patch('app.record_event', return_value=result):
                 callback(message_with(event_body()))
         callback(message_with(b'{not json'))
@@ -193,15 +210,6 @@ class MetricsTest(unittest.TestCase):
 
         for result, was in before.items():
             self.assertEqual(self.count(result) - was, 1, result)
-
-    def test_the_delay_from_serve_to_count_is_recorded_for_counted_events_only(self):
-        callback = app.make_callback(Mock(), Mock(), Mock(), 'click')
-        before = self.delays()
-        with patch('app.record_event', return_value='counted'):
-            callback(message_with(event_body(served_at=datetime.now(timezone.utc) - timedelta(seconds=3))))
-        with patch('app.record_event', return_value='duplicate'):
-            callback(message_with(event_body()))
-        self.assertEqual(self.delays() - before, 1)
 
 
 class MongoTestCase(unittest.TestCase):
@@ -220,13 +228,24 @@ class MongoTestCase(unittest.TestCase):
     def setUp(self):
         self.database = self.client[f'adpulse_test_{uuid.uuid4().hex[:8]}']
         app.prepare_database(self.database)
-        self.redis = Mock()  # replaced in the spend tests, unused for events with no price
+        self.redis = Mock()  # replaced in the Redis tests, unused by events with no price or counters
 
     def tearDown(self):
         self.client.drop_database(self.database.name)
 
     def record(self, event_type='click', event=None):
-        return app.record_event(self.client, self.database, self.redis, event_type, event or engagement(), NOW)
+        return app.record_event(self.database, self.redis, event_type, event or engagement(), NOW)
+
+    def fold(self, batch=app.FOLD_BATCH):
+        return app.fold(self.client, self.database, self.redis, NOW, batch)
+
+    def fold_all(self):
+        total = 0
+        while True:
+            folded = self.fold()
+            total += folded
+            if folded == 0:
+                return total
 
     def report(self, ad_id='AD1'):
         return self.database.reports.find_one({'_id': ad_id})
@@ -234,54 +253,67 @@ class MongoTestCase(unittest.TestCase):
 
 @unittest.skipUnless(os.getenv('MONGODB_TEST_URI'), 'set MONGODB_TEST_URI to a MongoDB replica set to run these')
 class ExactlyOnceTest(MongoTestCase):
-    def test_an_event_is_counted(self):
-        self.assertEqual(self.record(), 'counted')
+    def test_an_event_is_counted_once_it_is_folded(self):
+        self.assertEqual(self.record(), 'recorded')
+        self.assertIsNone(self.report())
+        self.assertEqual(self.fold(), 1)
         self.assertEqual(self.report(), {'_id': 'AD1', 'click': 1, 'render': 0})
+        self.assertEqual(self.fold(), 0)
 
     def test_a_replayed_url_is_counted_once(self):
         results = [self.record() for _ in range(5)]
-        self.assertEqual(results, ['counted'] + ['duplicate'] * 4)
+        self.assertEqual(results, ['recorded'] + ['duplicate'] * 4)
+        self.fold_all()
         self.assertEqual(self.report()['click'], 1)
 
-    def test_a_message_delivered_again_after_its_commit_is_counted_once(self):
-        # The worker commits, then dies before it can ack, so Pub/Sub sends the same message again.
-        self.assertEqual(self.record(), 'counted')
+    def test_a_message_delivered_again_after_it_was_recorded_is_counted_once(self):
+        # The worker records the event, then dies before it can ack, so Pub/Sub sends it again.
+        self.assertEqual(self.record(), 'recorded')
         self.assertEqual(self.record(), 'duplicate')
+        self.fold_all()
         self.assertEqual(self.report()['click'], 1)
 
-    def test_a_failure_between_the_two_writes_leaves_nothing_behind(self):
-        # The inbox record is written, then the worker fails before the count is added. Without the transaction
-        # the record would stay, the retry would see a "duplicate", and the click would never be counted.
+    def test_a_replay_after_the_fold_is_still_a_duplicate(self):
+        self.record()
+        self.fold_all()
+        self.assertEqual(self.record(), 'duplicate')
+        self.assertEqual(self.fold_all(), 0)
+        self.assertEqual(self.report()['click'], 1)
+
+    def test_a_fold_that_fails_part_way_leaves_nothing_behind(self):
+        # The counts are added, then the fold dies before it marks the events. Without the transaction the
+        # counts would stay, and the next fold would add them again.
         from pymongo.collection import Collection
 
-        real_update_one = Collection.update_one
+        self.record()
+        real_update_many = Collection.update_many
 
-        def fail_on_reports(collection, *args, **kwargs):
-            if collection.name == 'reports':
-                raise ConnectionError('the worker died here')
-            return real_update_one(collection, *args, **kwargs)
+        def fail_on_inbox(collection, *args, **kwargs):
+            if collection.name == 'inbox':
+                raise ConnectionError('the fold died here')
+            return real_update_many(collection, *args, **kwargs)
 
-        with patch.object(Collection, 'update_one', autospec=True, side_effect=fail_on_reports):
+        with patch.object(Collection, 'update_many', autospec=True, side_effect=fail_on_inbox):
             with self.assertRaises(ConnectionError):
-                self.record()
+                self.fold()
 
-        self.assertIsNone(self.database.inbox.find_one({'_id': 'click:B1'}))
-        self.assertEqual(self.record(), 'counted')
+        self.assertIsNone(self.report())
+        self.assertEqual(self.fold_all(), 1)
         self.assertEqual(self.report()['click'], 1)
 
     def test_the_click_and_the_render_of_one_bid_both_count(self):
         self.record('click')
         self.record('render')
+        self.fold_all()
         self.assertEqual(self.report(), {'_id': 'AD1', 'click': 1, 'render': 1})
 
     def test_different_bids_of_the_same_ad_each_count(self):
         for bid_id in ('B1', 'B2', 'B3'):
             self.record(event=engagement(bid_id=bid_id))
+        self.fold_all()
         self.assertEqual(self.report()['click'], 3)
 
-    def test_the_same_event_arriving_on_several_threads_at_once_is_counted_once(self):
-        # Pub/Sub can hand two workers the same message. Their transactions collide on the inbox record, one
-        # commits, and the other retries and finds it.
+    def test_the_same_event_arriving_on_several_threads_at_once_is_recorded_once(self):
         threads, results = 12, []
         start = threading.Barrier(threads)
         lock = threading.Lock()
@@ -298,12 +330,66 @@ class ExactlyOnceTest(MongoTestCase):
         for thread in workers:
             thread.join()
 
-        self.assertEqual(sorted(results), ['counted'] + ['duplicate'] * (threads - 1))
+        self.assertEqual(sorted(results), ['duplicate'] * (threads - 1) + ['recorded'])
+        self.fold_all()
         self.assertEqual(self.report()['click'], 1)
 
-    def test_the_inbox_forgets_after_72_hours(self):
-        index = next(i for i in self.database.inbox.list_indexes() if i['key'] == {'seen_at': 1})
-        self.assertEqual(index['expireAfterSeconds'], 72 * 3600)
+    def test_folds_running_at_once_count_every_event_exactly_once(self):
+        # Several subscribers fold the same backlog. Their transactions collide on the events, and each event
+        # ends up in exactly one of them.
+        events = 600
+        for n in range(events):
+            self.record(event=engagement(bid_id=f'B{n}'))
+        folded, lock = [], threading.Lock()
+        start = threading.Barrier(4)
+
+        def folder():
+            start.wait()
+            while True:
+                n = self.fold(batch=50)
+                with lock:
+                    folded.append(n)
+                if n == 0:
+                    return
+
+        threads = [threading.Thread(target=folder) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(sum(folded), events)
+        self.assertEqual(self.report()['click'], events)
+        self.assertEqual(self.database.inbox.count_documents({'folded': False}), 0)
+
+    def test_a_fold_takes_at_most_a_batch_oldest_first(self):
+        for n in range(5):
+            app.record_event(self.database, self.redis, 'click', engagement(bid_id=f'B{n}'), NOW + timedelta(seconds=n))
+        self.assertEqual([self.fold(batch=2) for _ in range(4)], [2, 2, 1, 0])
+        first = self.database.inbox.find_one({'_id': 'click:B0'})
+        self.assertTrue(first['folded'])
+
+    def test_records_from_before_folding_existed_are_never_folded(self):
+        # The old subscriber counted as it recorded, and its records have no folded field.
+        self.database.inbox.insert_one({'_id': 'click:OLD', 'seen_at': NOW})
+        self.assertEqual(self.fold(), 0)
+        self.assertIsNone(self.report())
+
+    def test_the_inbox_forgets_after_72_hours_and_folds_find_the_oldest_quickly(self):
+        indexes = {tuple(i['key'].items()): i for i in self.database.inbox.list_indexes()}
+        self.assertEqual(indexes[(('seen_at', 1),)]['expireAfterSeconds'], 72 * 3600)
+        self.assertIn((('folded', 1), ('seen_at', 1)), indexes)
+
+    def test_folding_records_how_long_after_serving_each_event_was_counted(self):
+        from prometheus_client import REGISTRY
+
+        before_count = REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_count') or 0
+        before_sum = REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_sum') or 0
+        for n in range(3):
+            self.record(event=engagement(bid_id=f'B{n}', served_at=NOW - timedelta(seconds=10)))
+        self.fold_all()
+        self.assertEqual(REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_count') - before_count, 3)
+        self.assertAlmostEqual(REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_sum') - before_sum, 30)
 
     def test_preparing_the_database_twice_is_fine(self):
         app.prepare_database(self.database)
@@ -335,7 +421,7 @@ class RedisTestCase(MongoTestCase):
     'set MONGODB_TEST_URI and REDIS_TEST_URL to run these',
 )
 class SpendTest(RedisTestCase):
-    """Spend is added in the transaction and copied to Redis."""
+    """Spend is added when events are folded, and copied to Redis after the commit."""
 
     def cpm_render(self, bid_id='B1', price=1_000_000):
         return self.record('render', engagement(self.ad, bid_id, 'CPM', price, campaign_id=self.campaign))
@@ -348,35 +434,45 @@ class SpendTest(RedisTestCase):
         cached = [None if v is None else int(v) for v in self.redis.mget([f'spend:{i}' for i in ids])]
         return mongo, cached
 
-    def test_a_billable_event_adds_its_price_to_all_four_totals_in_both_places(self):
+    def test_folded_events_add_their_prices_to_all_four_totals_in_both_places(self):
         self.cpm_render(price=1_000_000)
         self.cpm_render(bid_id='B2', price=500)
+        self.fold_all()
         mongo, cached = self.spent()
         self.assertEqual(mongo, [1_000_500] * 4)
         self.assertEqual(cached, [1_000_500] * 4)
 
+    def test_nothing_is_spent_until_the_fold(self):
+        self.cpm_render()
+        self.assertEqual(self.spent(), ([None] * 4, [None] * 4))
+
     def test_an_event_its_bid_type_does_not_pay_for_costs_nothing(self):
         self.record('click', engagement(self.ad, 'B1', 'CPM', 1_000_000, campaign_id=self.campaign))
+        self.fold_all()
         self.assertEqual(self.spent(), ([None] * 4, [None] * 4))
 
     def test_a_replay_is_not_charged_twice(self):
         for _ in range(4):
             self.cpm_render()
-        mongo, cached = self.spent()
-        self.assertEqual(mongo, [1_000_000] * 4)
-        self.assertEqual(cached, [1_000_000] * 4)
+        self.fold_all()
+        self.assertEqual(self.spent(), ([1_000_000] * 4, [1_000_000] * 4))
 
-    def test_if_redis_fails_after_the_commit_the_redelivery_repairs_it(self):
+    def test_if_redis_fails_after_a_fold_the_next_fold_of_that_ad_repairs_it(self):
         broken = Mock()
         broken.register_script.side_effect = ConnectionError('redis is down')
+        self.cpm_render()
         self.redis = broken
         with self.assertRaises(ConnectionError):
-            self.cpm_render()
-
-        # Pub/Sub delivers it again. It is a duplicate now, so nothing is charged twice, but Redis gets the totals.
+            self.fold()
+        # The fold committed, so MongoDB is right and the event is not folded again.
         self.redis = self.real_redis
-        self.assertEqual(self.cpm_render(), 'duplicate')
-        self.assertEqual(self.spent(), ([1_000_000] * 4, [1_000_000] * 4))
+        self.assertEqual(self.spent(), ([1_000_000] * 4, [None] * 4))
+        self.assertEqual(self.fold(), 0)
+
+        # The ad still looks like it has budget, so it serves, and its next event's fold copies the true totals.
+        self.cpm_render(bid_id='B2')
+        self.fold_all()
+        self.assertEqual(self.spent(), ([2_000_000] * 4, [2_000_000] * 4))
 
     def test_a_late_smaller_total_never_overwrites_a_larger_one(self):
         key = f'ad:{self.ad}'
@@ -401,13 +497,14 @@ class SpendTest(RedisTestCase):
 
     def test_daily_totals_expire_sooner_than_the_overall_totals(self):
         self.cpm_render()
+        self.fold_all()
         daily = self.redis.ttl(f'spend:ad:{self.ad}:2026-11-08')
         total = self.redis.ttl(f'spend:ad:{self.ad}')
         self.assertTrue(47 * 3600 < daily <= 48 * 3600, daily)
         self.assertTrue(29 * 86400 < total <= 30 * 86400, total)
 
     def test_many_events_of_one_ad_at_once_add_up_exactly(self):
-        # Every transaction writes the same four totals, so they conflict and retry. None may be lost.
+        # The case that used to conflict: many events of one ad recorded at the same moment.
         threads = 12
         start = threading.Barrier(threads)
 
@@ -420,6 +517,7 @@ class SpendTest(RedisTestCase):
             thread.start()
         for thread in workers:
             thread.join()
+        self.fold_all()
 
         want = sum(1_000 + n for n in range(threads))
         self.assertEqual(self.spent(), ([want] * 4, [want] * 4))
@@ -430,7 +528,7 @@ class SpendTest(RedisTestCase):
     'set MONGODB_TEST_URI and REDIS_TEST_URL to run these',
 )
 class CounterTest(RedisTestCase):
-    """A capped ad's events go into its user's sorted sets, which the ad server's caps count."""
+    """A capped ad's events go into its user's sorted sets as they are recorded, for the ad server's caps."""
 
     def setUp(self):
         super().setUp()

@@ -33,8 +33,9 @@ ad-manager-frontend -> ad-manager-svc -> Postgres
 ## Budgets, frequency caps, counting and ranking
 
 Every click and render is counted exactly once, even when Pub/Sub delivers a message
-again or a tracking URL is opened twice: the subscriber records each event's id and its
-counts in one MongoDB transaction. Each event's price, fixed when the ad is served, is
+again or a tracking URL is opened twice: the subscriber records each event once under its
+id, then folds recorded events into the counts in batches, each batch in one MongoDB
+transaction that also marks its events folded. Each event's price, fixed when the ad is served, is
 added up per ad and campaign, and the ad server stops serving an ad or campaign that has
 spent its total or daily budget, and spreads a daily budget over the day. Per-user
 frequency caps are counted in Redis sorted sets. Within a priority, ads compete on eCPM,
@@ -120,7 +121,7 @@ To turn on the manager API key in a cluster, set the Actions secret `MANAGER_API
 
 These are the limits I know about and chose not to build. If this work continued, I would take them roughly in this order:
 
-- **One busy ad can outrun the subscriber, and then it overspends.** Every event of one ad updates the same spend documents in a transaction, so concurrent events conflict and retry. In the load test one ad at about 200 renders a second was counted at about 65 a second, the delay grew to a minute, and a $1 budget spent $4.68. Counting in small batches, or splitting hot totals into shards, would fix it. Details in [docs/DESIGN.md](docs/DESIGN.md#10-capacity-and-a-measured-run).
+- **An ad can still overspend by what is in flight.** Spend is counted when renders and clicks arrive, so the last events before a budget runs out still land. In the load test a $1 budget spent $1.079, 7.9% over. Reserving the price when an ad is served would bring this near zero. An earlier version was much worse, $4.68, because one busy ad's events fought over the same documents. [docs/DESIGN.md](docs/DESIGN.md#10-capacity-and-a-measured-run) has both runs.
 - **Tracking URLs are only checked when `TRACKING_SECRET` is set.** The compose stack sets it, so nobody can make up an event for an ad. Without the secret the URLs are not checked at all. A real URL can be opened many times, but each served bid counts for at most one click and one render: the subscriber counts every event exactly once, in a MongoDB transaction (see [the subscriber README](adpulse-engagement-subscriber-svc/README.md)). That needs MongoDB to run as a replica set.
 - **The manager API key is one shared key, and it is off unless `API_KEY` is set.** The compose stack sets it. A deployment that does not set it is open, as before. There are no users or roles, so anyone with the key can change anything. The dashboard asks for the key once per browser tab and keeps it in `sessionStorage`. CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
 - **The ad server asks the manager about the publisher and ad unit.** A confirmed one is remembered for 30 seconds, so a deleted publisher can keep serving for up to that long. Each call has a 3 second timeout.

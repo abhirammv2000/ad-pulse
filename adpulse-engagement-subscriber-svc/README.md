@@ -10,18 +10,37 @@ ad-manager-svc's `/reports` endpoints serve to the dashboard.
 Pub/Sub delivers at least once, and can deliver a message again even after it was
 acked. A tracking URL can also be opened many times. So each event has an id, its
 type and the id of the bid it belongs to (`click:<bid id>` or `render:<bid id>`),
-and one MongoDB transaction does both writes:
+and counting happens in two steps.
 
-1. Upsert the id into the `inbox` collection. If it was already there, the event
-   was counted before. Nothing else is written, and the message is acked.
-2. `$inc` the click or render count on the ad's `reports` row.
+**Recording.** Each message is inserted into the `inbox` collection with the event
+id as its `_id`, with what it adds to the counts: its ad, campaign, serve time and
+price. A second copy fails on the unique `_id` and is only acked, so a replay or a
+redelivery is never recorded twice. If the worker dies after the insert but before
+the ack, the redelivery finds the record. Recording writes one new document per
+event and nothing else, so events never wait on each other, however many one ad
+gets.
 
-Either both writes happen or neither does, so a crash at any point is safe. If it
-crashes before the commit, nothing was written and the redelivered message is
-counted normally. If it crashes after the commit but before the ack, the
-redelivered message finds its id and is only acked. Two workers given the same
-message at once collide on the inbox id: one commits, and the other retries and
-finds it.
+**Folding.** A loop in the same process takes up to 1,000 recorded events that are
+not folded yet, oldest first, and in one MongoDB transaction:
+
+1. adds them up, and applies one `$inc` per `reports` row and per spend total;
+2. marks them folded.
+
+An event is counted only by the transaction that marks it, so it is counted exactly
+once. A fold that fails part way leaves nothing behind, and the next one picks the
+same events up. Two subscribers folding at the same time collide on the events
+they both picked, and the second retries without them. When a fold finds fewer
+than 1,000 events, the loop waits half a second.
+
+**Why two steps.** The first version counted each event in its own transaction.
+Every render of a busy ad then updated the same few documents, the transactions
+kept conflicting and retrying, and one hot ad was counted at about 65 events a
+second, while it rendered 200 a second. Recording plus folding counts the same hot
+ad at about 1,700 a second, because a batch touches each total once. The
+measurements are in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
+
+Records written by the first version have no `folded` field, so they are never
+folded again: they were counted when they were written.
 
 The inbox can't grow forever, so a TTL index deletes each record after 72 hours.
 Two limits make sure a deleted record can never let an event count twice:
@@ -39,18 +58,20 @@ that an event stuck in a backlog for over 48 hours is not counted.
 ## Spend
 
 A billable event is a render of a CPM ad or a click of a CPC ad. Its price, set by the
-ad server and carried in the signed iid as `pricenanos`, is added in the same
-transaction to four totals in the `spend` collection: the ad's and the campaign's,
-overall and for the UTC day the ad was served. Using the serve day means a redelivered
-event always lands on the same day.
+ad server and carried in the signed iid as `pricenanos`, is kept on its inbox record
+and added by the fold, in the same transaction as the counts, to four totals in the
+`spend` collection: the ad's and the campaign's, overall and for the UTC day the ad
+was served. Using the serve day means a redelivered event always lands on the same day.
 
-After the commit the new totals are copied to Redis (`spend:ad:<id>`,
+After each fold commits, the new totals are copied to Redis (`spend:ad:<id>`,
 `spend:ad:<id>:<day>` and the same for the campaign), where the ad server checks
 budgets. A small Lua script writes a total only if it is larger than what is there.
 Totals only grow, so the larger value is right in whatever order two copies arrive, and
 the values are compared as text, because Lua numbers are doubles and lose whole numbers
-past 2^53 nanos (about $9 million). If Redis fails, the message is nacked, and its
-redelivery is a duplicate that copies the totals again without charging twice. Daily
+past 2^53 nanos (about $9 million). If Redis fails after a fold, MongoDB still has the
+right totals, and the next fold that touches the same ad copies them. Until then the ad
+looks like it has more budget than it does, so it keeps serving and its next event
+brings the fold that repairs it. Daily
 totals expire from Redis after 48 hours and overall totals 30 days after they last
 grew. MongoDB keeps them all.
 
@@ -82,7 +103,7 @@ Use three in production. Managed MongoDB (Atlas) is always a replica set.
 | `MONGODB_DATABASE` | `ad_pulse` | Mongo database name |
 | `REDIS_HOST` | `localhost` | Redis the ad server reads spend from |
 | `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD` | `6379`, none, none | Redis connection |
-| `METRICS_PORT` | `9102` | Port of the Prometheus `/metrics` endpoint: `subscriber_events_total{event, result}` (counted, duplicate, too_old, malformed, failed) and `subscriber_serve_to_count_seconds`, how long after serving an event was counted |
+| `METRICS_PORT` | `9102` | Port of the Prometheus `/metrics` endpoint: `subscriber_events_total{event, result}` (recorded, duplicate, too_old, malformed, failed), `subscriber_serve_to_count_seconds`, how long after serving an event was folded into the counts, and `subscriber_fold_failures_total` |
 
 ## Running
 
@@ -117,11 +138,12 @@ MONGODB_TEST_URI="mongodb://localhost:27017/?replicaSet=rs0" REDIS_TEST_URL="red
   python -m unittest discover -s tests -p "*_test.py"
 ```
 
-They count a replayed event, an event delivered again after its commit, and the
-same event arriving on twelve threads at once, and check that each is counted
-once. One also fails the second write mid-transaction and checks that the first
-is rolled back. The spend tests check that a replay is never charged twice, that
-twelve events of one ad at once add up exactly, that a failed copy to Redis is
-repaired by the redelivery, and that a later, smaller total never overwrites a
-larger one, including past 2^53. CI runs them against the same kind of replica
-set and Redis.
+They record a replayed event, an event delivered again after it was recorded, and
+the same event arriving on twelve threads at once, and check that each is counted
+once. One fails a fold part way and checks that nothing was left behind, and one
+runs four folds over the same 600-event backlog at once and checks every event is
+counted exactly once. The spend tests check that a replay is never charged twice,
+that twelve events of one ad at once add up exactly, that a failed copy to Redis is
+repaired by the next fold, and that a later, smaller total never overwrites a larger
+one, including past 2^53. CI runs them against the same kind of replica set and
+Redis.

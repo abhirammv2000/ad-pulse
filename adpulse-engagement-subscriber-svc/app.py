@@ -2,16 +2,27 @@
 
 Pub/Sub delivers at least once, and can deliver a message again even after it
 was acked. A tracking URL can also be opened many times. So every event has an
-id, its type plus the id of the bid it belongs to, and the count and a record of
-that id are written in one MongoDB transaction. If the record is already there,
-the event was counted before and the message is only acked.
+id, its type plus the id of the bid it belongs to.
 
-Counts land in the MongoDB `reports` collection, which the ad manager's
-/reports endpoints serve to the dashboard.
+Counting happens in two steps:
 
-A billable event (a render of a CPM ad, a click of a CPC ad) also adds its
-price to what the ad and its campaign have spent, in the same transaction, and
-the new totals are then copied to Redis, where the ad server checks budgets.
+1. record_event writes the event to the `inbox` collection, with the event id as
+   its _id. A second copy can't be written, which is the dedupe, and two events
+   never write the same document, so recording doesn't slow down when one ad gets
+   many events at once.
+2. fold, which runs in a loop, adds recorded events to the totals in batches: in
+   one transaction it adds up a batch, applies one $inc per report row and spend
+   total, and marks the events folded. An event is only counted by the
+   transaction that marks it, so it is counted exactly once.
+
+Counting each event in its own transaction, the first design, had every event
+of a busy ad update the same few documents, and they kept conflicting. The load
+test in docs/DESIGN.md shows the difference.
+
+Counts land in the `reports` collection, which the ad manager's /reports
+endpoints serve. A billable event (a render of a CPM ad, a click of a CPC ad)
+also adds its price to what the ad and its campaign have spent, and the new
+totals are copied to Redis, where the ad server checks budgets.
 """
 
 import json
@@ -19,15 +30,16 @@ import logging
 import os
 import signal
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from threading import Event
+from threading import Event, Thread
 
 import redis
 from google.cloud import pubsub_v1
 from prometheus_client import Counter, Histogram, start_http_server
-from pymongo import MongoClient, ReturnDocument
-from pymongo.errors import CollectionInvalid
+from pymongo import MongoClient, UpdateOne
+from pymongo.errors import CollectionInvalid, DuplicateKeyError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -46,15 +58,21 @@ METRICS_PORT = int(os.getenv("METRICS_PORT", "9102"))
 # Prometheus metrics, served on METRICS_PORT. Both labels have fixed values.
 EVENTS = Counter(
     "subscriber_events_total",
-    "Click and render messages by event and result: counted, duplicate, too_old, malformed or failed.",
+    "Click and render messages by event and result: recorded, duplicate, too_old, malformed or failed.",
     ["event", "result"],
 )
 # How far behind the counts are. Budgets and caps overshoot by what is in flight for this long.
 SERVE_TO_COUNT = Histogram(
     "subscriber_serve_to_count_seconds",
-    "Seconds from serving an ad to counting its click or render.",
+    "Seconds from serving an ad to folding its click or render into the counts.",
     buckets=(0.5, 1, 2, 5, 10, 30, 60, 300, 1800, 3600, 86400),
 )
+FOLD_FAILURES = Counter("subscriber_fold_failures_total", "Folds that failed and will be tried again.")
+
+# A fold adds up at most this many events, and when it finds fewer, the loop waits
+# this long before the next one.
+FOLD_BATCH = 1000
+FOLD_INTERVAL = 0.5
 
 # Both event types share one row per ad, so a new row needs a zero for the
 # counter that did not fire.
@@ -77,10 +95,6 @@ BILLABLE_EVENT = {"CPM": "render", "CPC": "click"}
 DAILY_SPEND_TTL = timedelta(hours=48)
 TOTAL_SPEND_TTL = timedelta(days=30)
 
-# Raises a spend total in Redis, and never lowers it. Totals only grow, so keeping
-# the larger value is right in whatever order the writes arrive, and writing the
-# same value twice changes nothing. The values are whole numbers of nanos, and are
-# compared as text: Lua numbers are doubles, which lose whole numbers past 2^53.
 COUNTER_EVENT = {"render": "CSC", "click": "CLK"}  # how frequency caps name the two event types
 KNOWN_COUNTERS = {f"{entity}:{event}" for entity in ("AD", "CAMPAIGN") for event in ("CSC", "CLK")}
 
@@ -91,6 +105,10 @@ COUNTER_KEEP = timedelta(days=7)
 COUNTER_TTL = timedelta(days=8)
 COUNTER_MAX_EVENTS = 1000
 
+# Raises a spend total in Redis, and never lowers it. Totals only grow, so keeping
+# the larger value is right in whatever order the writes arrive, and writing the
+# same value twice changes nothing. The values are whole numbers of nanos, and are
+# compared as text: Lua numbers are doubles, which lose whole numbers past 2^53.
 RAISE_SPEND = """
 local current = redis.call('GET', KEYS[1])
 local new = ARGV[1]
@@ -184,23 +202,23 @@ def charge(event_type, event):
     return event.price_nanos if BILLABLE_EVENT.get(event.bid_type) == event_type else 0
 
 
-def spend_totals(event):
+def spend_totals(ad_id, campaign_id, served):
     """The spend totals one billable event adds to, and how long Redis keeps each.
 
     Each id is a MongoDB _id in the spend collection and, after "spend:", a Redis
-    key the ad server reads. The day is the UTC day the ad was served, so a
-    redelivered event always lands on the same day.
+    key the ad server reads. The day is the UTC day the ad was served (served is
+    in Unix seconds), so a redelivered event always lands on the same day.
     """
-    day = event.served_at.strftime("%Y-%m-%d")
+    day = datetime.fromtimestamp(served, tz=timezone.utc).strftime("%Y-%m-%d")
     totals = []
-    for kind, entity_id in (("ad", event.ad_id), ("campaign", event.campaign_id)):
+    for kind, entity_id in (("ad", ad_id), ("campaign", campaign_id)):
         totals.append((f"{kind}:{entity_id}", TOTAL_SPEND_TTL))
         totals.append((f"{kind}:{entity_id}:{day}", DAILY_SPEND_TTL))
     return totals
 
 
 def prepare_database(database):
-    """Create the collections and the index the transaction needs. Safe to run on every start.
+    """Create the collections and the indexes counting needs. Safe to run on every start.
 
     The collections are made here, outside any transaction, so two transactions
     never race to create one.
@@ -212,72 +230,115 @@ def prepare_database(database):
             pass  # it already exists
     # MongoDB deletes an inbox record this long after it was written.
     database.inbox.create_index("seen_at", expireAfterSeconds=int(INBOX_TTL.total_seconds()))
+    # fold reads the oldest events not folded yet.
+    database.inbox.create_index([("folded", 1), ("seen_at", 1)])
 
 
-def record_event(client, database, redis_client, event_type, event, now):
-    """Count one event at most once, and charge its price if it has one.
+def record_event(database, redis_client, event_type, event, now):
+    """Record one event at most once. fold() adds it to the counts later.
 
-    Returns "counted", "duplicate" or "too_old".
+    Returns "recorded", "duplicate" or "too_old".
     """
     if now - event.served_at > COUNT_WINDOW:
         return "too_old"
 
-    event_id = f"{event_type}:{event.bid_id}"
-    other = next(t for t in EVENT_TYPES if t != event_type)
-    price = charge(event_type, event)
-    totals = spend_totals(event) if price else []
-
-    def count(session):
-        # The upsert only inserts when the id is new, so finding it already there means it was counted.
-        inbox = database.inbox.update_one(
-            {"_id": event_id},
-            {"$setOnInsert": {"seen_at": now}},
-            upsert=True,
-            session=session,
-        )
-        if inbox.upserted_id is None:
-            return None
-        database.reports.update_one(
-            {"_id": event.ad_id},
-            {"$inc": {event_type: 1}, "$setOnInsert": {other: 0}},
-            upsert=True,
-            session=session,
-        )
-        spent = {}
-        for spend_id, _ in totals:
-            row = database.spend.find_one_and_update(
-                {"_id": spend_id},
-                {"$inc": {"nanos": price}},
-                upsert=True,
-                return_document=ReturnDocument.AFTER,
-                session=session,
-            )
-            spent[spend_id] = row["nanos"]
-        return spent
-
-    # with_transaction runs count() again after a transient error such as a write
-    # conflict. That is safe because count() only writes inside the transaction.
-    with client.start_session() as session:
-        spent = session.with_transaction(count)
-
-    result = "counted"
-    if spent is None:
-        # Counted before. The copy in Redis may not have been made then, so make it again.
+    try:
+        database.inbox.insert_one({
+            "_id": f"{event_type}:{event.bid_id}",
+            "seen_at": now,
+            "folded": False,
+            "type": event_type,
+            "ad": event.ad_id,
+            "campaign": event.campaign_id,
+            "served": int(event.served_at.timestamp()),
+            "nanos": charge(event_type, event),
+        })
+        result = "recorded"
+    except DuplicateKeyError:
         result = "duplicate"
-        ids = [spend_id for spend_id, _ in totals]
-        spent = {row["_id"]: row["nanos"] for row in database.spend.find({"_id": {"$in": ids}})} if ids else {}
 
-    copy_spend_to_redis(redis_client, spent, dict(totals))
+    # Written again for a duplicate too, in case Redis failed the first time.
     add_to_counters(redis_client, counter_keys(event_type, event), event)
     return result
+
+
+def fold(client, database, redis_client, now, batch=FOLD_BATCH):
+    """Add up to `batch` recorded events to the counts and spend totals. Returns how many.
+
+    One transaction reads the oldest events not folded yet, adds them up, applies
+    one $inc per report row and spend total, and marks the events folded. Two folds
+    that pick the same events collide on them, and the second retries without them.
+    """
+    def apply(session):
+        events = list(database.inbox.find({"folded": False}, sort=[("seen_at", 1)], limit=batch, session=session))
+        if not events:
+            return [], {}
+
+        counts = defaultdict(lambda: {"click": 0, "render": 0})
+        spent = defaultdict(int)
+        ttls = {}
+        for event in events:
+            counts[event["ad"]][event["type"]] += 1
+            if event["nanos"]:
+                for spend_id, ttl in spend_totals(event["ad"], event["campaign"], event["served"]):
+                    spent[spend_id] += event["nanos"]
+                    ttls[spend_id] = ttl
+
+        database.reports.bulk_write(
+            [UpdateOne({"_id": ad}, {"$inc": added}, upsert=True) for ad, added in counts.items()],
+            ordered=False,
+            session=session,
+        )
+        if spent:
+            database.spend.bulk_write(
+                [UpdateOne({"_id": spend_id}, {"$inc": {"nanos": nanos}}, upsert=True) for spend_id, nanos in spent.items()],
+                ordered=False,
+                session=session,
+            )
+        ids = [event["_id"] for event in events]
+        marked = database.inbox.update_many({"_id": {"$in": ids}, "folded": False}, {"$set": {"folded": True}}, session=session)
+        if marked.modified_count != len(ids):
+            # A snapshot transaction can't see an event as unfolded and then fail to
+            # mark it, so this means something is badly wrong. Abort rather than count.
+            raise RuntimeError(f"marked {marked.modified_count} of {len(ids)} events as folded")
+        return events, ttls
+
+    # with_transaction runs apply() again after a transient error such as a write
+    # conflict with another fold. That is safe because it only writes inside the
+    # transaction.
+    with client.start_session() as session:
+        events, ttls = session.with_transaction(apply)
+    if not events:
+        return 0
+
+    for event in events:
+        SERVE_TO_COUNT.observe(now.timestamp() - event["served"])
+    # After the commit, copy the new totals to Redis. If this fails the counts are
+    # still right in MongoDB, and the next fold that touches the same ad copies them.
+    totals = {row["_id"]: row["nanos"] for row in database.spend.find({"_id": {"$in": list(ttls)}})} if ttls else {}
+    copy_spend_to_redis(redis_client, totals, ttls)
+    return len(events)
+
+
+def fold_forever(client, database, redis_client, stop):
+    """Fold recorded events until stop is set. A failed fold is logged and tried again."""
+    while not stop.is_set():
+        try:
+            folded = fold(client, database, redis_client, datetime.now(timezone.utc))
+        except Exception:
+            log.exception("fold failed, trying again")
+            FOLD_FAILURES.inc()
+            folded = 0
+        if folded < FOLD_BATCH:
+            stop.wait(FOLD_INTERVAL)
 
 
 def add_to_counters(redis_client, keys, event):
     """Add the event to its user's frequency cap counters, and drop what no cap can reach.
 
     The bid id is the member and the serve time the score, so writing the same event
-    again changes nothing. Like the spend copy, a failure here nacks the message, and
-    the redelivery, a duplicate, writes it again.
+    again changes nothing. A failure here nacks the message, and the redelivery, a
+    duplicate, writes it again.
     """
     if not keys:
         return
@@ -293,12 +354,7 @@ def add_to_counters(redis_client, keys, event):
 
 
 def copy_spend_to_redis(redis_client, spent, ttls):
-    """Write new spend totals to Redis for the ad server, never lowering one.
-
-    This runs after the transaction has committed. If Redis can't be reached the
-    error goes up, the message is nacked, and the redelivery comes back here as a
-    duplicate and copies the totals again.
-    """
+    """Write new spend totals to Redis for the ad server, never lowering one."""
     if not spent:
         return
     raise_spend = redis_client.register_script(RAISE_SPEND)
@@ -312,7 +368,7 @@ def copy_spend_to_redis(redis_client, spent, ttls):
     pipe.execute()
 
 
-def make_callback(client, database, redis_client, event_type):
+def make_callback(database, redis_client, event_type):
     def callback(message):
         try:
             event = parse_event(message.data)
@@ -323,19 +379,16 @@ def make_callback(client, database, redis_client, event_type):
             message.ack()
             return
 
-        now = datetime.now(timezone.utc)
         try:
-            result = record_event(client, database, redis_client, event_type, event, now)
+            result = record_event(database, redis_client, event_type, event, datetime.now(timezone.utc))
         except Exception:
-            # Anything else (MongoDB or Redis down, a transaction that kept failing) is worth retrying.
+            # Anything else (MongoDB or Redis down) is worth retrying.
             log.exception("failed to record %s message", event_type)
             EVENTS.labels(event_type, "failed").inc()
             message.nack()
             return
 
         EVENTS.labels(event_type, result).inc()
-        if result == "counted":
-            SERVE_TO_COUNT.observe((now - event.served_at).total_seconds())
         if result == "too_old":
             log.warning(
                 "not counting %s for ad %s: it was served at %s, too long ago", event_type, event.ad_id, event.served_at
@@ -355,7 +408,7 @@ def main():
 
     mongo = MongoClient(MONGODB_URI)
     if "setName" not in mongo.admin.command("hello"):
-        sys.exit("MongoDB has to be a replica set: events are counted in transactions, which a standalone server does not run")
+        sys.exit("MongoDB has to be a replica set: events are folded into the counts in transactions, which a standalone server does not run")
     database = mongo[MONGODB_DATABASE]
     prepare_database(database)
 
@@ -367,17 +420,21 @@ def main():
     # This is a queue consumer with no HTTP server of its own, so the metrics get one.
     start_http_server(METRICS_PORT)
 
+    stop = Event()
+    folder = Thread(target=fold_forever, args=(mongo, database, redis_client, stop), daemon=True)
+    folder.start()
+
     # Credentials come from Application Default Credentials; set
     # GOOGLE_APPLICATION_CREDENTIALS to a key file for local development.
     subscriber = pubsub_v1.SubscriberClient()
     futures = [
         subscriber.subscribe(
             subscriber.subscription_path(PROJECT_ID, CLICK_SUBSCRIPTION),
-            callback=make_callback(mongo, database, redis_client, "click"),
+            callback=make_callback(database, redis_client, "click"),
         ),
         subscriber.subscribe(
             subscriber.subscription_path(PROJECT_ID, CSC_SUBSCRIPTION),
-            callback=make_callback(mongo, database, redis_client, "render"),
+            callback=make_callback(database, redis_client, "render"),
         ),
     ]
     log.info("listening on %s and %s", CLICK_SUBSCRIPTION, CSC_SUBSCRIPTION)
@@ -392,6 +449,8 @@ def main():
     for future in futures:
         future.cancel()
     subscriber.close()
+    stop.set()
+    folder.join(timeout=10)
     mongo.close()
     redis_client.close()
 
