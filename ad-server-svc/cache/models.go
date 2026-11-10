@@ -32,9 +32,12 @@ type Impression struct {
 }
 
 type RequestBody struct {
-	DPL string       `json:"dpl"`
-	ID  string       `json:"id"`
-	Imp []Impression `json:"imp"`
+	DPL  string       `json:"dpl"`
+	ID   string       `json:"id"`
+	Imp  []Impression `json:"imp"`
+	User struct {
+		ID string `json:"id"` // who the ad is for, as OpenRTB's user.id. Frequency caps count per user
+	} `json:"user"`
 }
 
 type Campaign struct {
@@ -46,25 +49,32 @@ type Campaign struct {
 		TotalBudget  Money  `json:"totalBudget"`
 		CurrencyCode string `json:"currencyCode"`
 	} `json:"budget"`
-	CreatedAt     string `json:"createdat"`
-	UpdatedAt     string `json:"updatedat"`
-	UpdatedBy     string `json:"updatedby"`
-	AdvertiserID  string `json:"advertiserid"`
-	EndDate       string `json:"enddate"`
-	FrequencyCaps struct {
-		FrequencyCapList []struct {
-			UserCap   bool   `json:"userCap"`
-			EventType string `json:"eventType"`
-			TimeFrame struct {
-				Value          int    `json:"value"`
-				MaxCount       int    `json:"maxCount"`
-				TimeWindowType string `json:"timeWindowType"`
-			} `json:"timeFrame"`
-			EntityType string `json:"entityType"`
-		} `json:"frequencyCapList"`
-	} `json:"frequencycaps"`
-	CreatedBy     string `json:"createdby"`
-	CampaignState string `json:"campaignstate"`
+	CreatedAt     string        `json:"createdat"`
+	UpdatedAt     string        `json:"updatedat"`
+	UpdatedBy     string        `json:"updatedby"`
+	AdvertiserID  string        `json:"advertiserid"`
+	EndDate       string        `json:"enddate"`
+	FrequencyCaps FrequencyCaps `json:"frequencycaps"`
+	CreatedBy     string        `json:"createdby"`
+	CampaignState string        `json:"campaignstate"`
+}
+
+// FrequencyCap limits how many renders (CSC) or clicks (CLK) one user may have of
+// an ad, or of any ad in a campaign (EntityType), within a window. ad-manager-svc
+// checks the values before they are stored.
+type FrequencyCap struct {
+	UserCap   bool   `json:"userCap"`
+	EventType string `json:"eventType"`
+	TimeFrame struct {
+		Value          int    `json:"value"`
+		MaxCount       int    `json:"maxCount"`
+		TimeWindowType string `json:"timeWindowType"`
+	} `json:"timeFrame"`
+	EntityType string `json:"entityType"`
+}
+
+type FrequencyCaps struct {
+	FrequencyCapList []FrequencyCap `json:"frequencyCapList"`
 }
 
 type DayTargeting struct {
@@ -99,28 +109,26 @@ type Ad struct {
 		DailyBudget  Money  `json:"dailyBudget"`
 		TotalBudget  Money  `json:"totalBudget"`
 	} `json:"budget"`
-	CampaignID    string `json:"campaignid"`
-	CreatedAt     string `json:"createdat"`
-	CreatedBy     string `json:"createdby"`
-	CreativeID    string `json:"creativeid"`
-	EndDate       string `json:"enddate"`
-	FrequencyCaps struct {
-		FrequencyCapList []struct {
-			UserCap   bool   `json:"userCap"`
-			EventType string `json:"eventType"`
-			TimeFrame struct {
-				Value          int    `json:"value"`
-				MaxCount       int    `json:"maxCount"`
-				TimeWindowType string `json:"timeWindowType"`
-			} `json:"timeFrame"`
-			EntityType string `json:"entityType"`
-		} `json:"frequencyCapList"`
-	} `json:"frequencycaps"`
+	CampaignID    string         `json:"campaignid"`
+	CreatedAt     string         `json:"createdat"`
+	CreatedBy     string         `json:"createdby"`
+	CreativeID    string         `json:"creativeid"`
+	EndDate       string         `json:"enddate"`
+	FrequencyCaps FrequencyCaps  `json:"frequencycaps"`
 	LandingURL    string         `json:"landingurl"`
 	StartDate     string         `json:"startdate"`
 	TargetingInfo *TargetingInfo `json:"targetinginfo"`
 	UpdatedAt     string         `json:"updatedat"`
 	UpdatedBy     string         `json:"updatedby"`
+
+	// The ad's clicks and renders so far. ad-manager-svc's cache job adds them to CPC
+	// ads, whose ranking needs a click-through rate. Other ads have none.
+	Stats struct {
+		Clicks  int64 `json:"clicks"`
+		Renders int64 `json:"renders"`
+	} `json:"stats"`
+
+	flight *flight // StartDate and EndDate, parsed once when decoded. See flight.go
 }
 
 type Ext struct {
@@ -163,13 +171,28 @@ type Creative struct {
 	Assets       []CreativeAsset `json:"assets"`
 }
 
+// IIDData identifies one served bid. It travels in the click and render URLs,
+// signed, and the bid id is what lets each event be counted only once.
+//
+// BidType and PriceNanos say what the bid costs: a render for CPM, a click for
+// CPC. They are fixed when the ad is served, so changing an ad's bid later never
+// changes what its earlier events cost.
 type IIDData struct {
+	BidID            string `json:"bidid"`
+	BidType          string `json:"bidtype"`
+	PriceNanos       int64  `json:"pricenanos"`
 	AdID             string `json:"adid"`
 	CreativeID       string `json:"creativeid"`
 	AdUnitId         string `json:"adunitid"`
 	CampaignID       string `json:"campaignid"`
 	AdvertiserID     string `json:"advertiserid"`
 	RequestTimeStamp int64  `json:"requesttimestamp"`
+
+	// For frequency caps: the user, and which of their counters this event feeds,
+	// such as "AD:CSC" for renders of this ad. Only set when the ad or its campaign
+	// has a cap and the request named a user.
+	UserID   string   `json:"userid,omitempty"`
+	Counters []string `json:"counters,omitempty"`
 }
 
 type AdServeResponse struct {
@@ -180,7 +203,8 @@ type AdServeResponse struct {
 }
 
 type BidParams struct {
-	RankedAds   *[]Ad       `json:"ranked_ads"`
-	RequestBody RequestBody `json:"request_body"`
-	AdUnitId    string      `json:"adunit_id"`
+	RequestBody RequestBody         `json:"request_body"`
+	AdUnitId    string              `json:"adunit_id"`
+	UserID      string              `json:"user_id"`
+	Counters    map[string][]string `json:"counters"` // by ad id, see IIDData.Counters
 }

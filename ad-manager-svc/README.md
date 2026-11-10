@@ -91,7 +91,7 @@ it cannot read. So [app/validation.py](app/validation.py) checks them on create 
 | `budget` (ads and campaigns) | `{"dailyBudget": number, "totalBudget": number, "currencyCode": "USD"}`, each optional |
 | `ad_unit_targeted` (ads) | a list of ad unit ids. An empty list means any ad unit |
 | `targetinginfo` (ads) | `{"dayTargeting": rule, "timeTargeting": rule}` where a rule is `{"type": "equal", "values": [...]}`. Days are 1 to 7 with Sunday as 1, hours are 0 to 23 in UTC |
-| `frequencycaps` (ads and campaigns) | `{"frequencyCapList": [cap, ...]}`, at most 5 caps. A cap is `{"entityType": "AD" or "CAMPAIGN", "eventType": "CSC" (render) or "CLK" (click), "userCap": true, "timeFrame": {"maxCount": n, "value": n, "timeWindowType": "MINUTE", "HOUR", "DAY" or "WEEK"}}`, all required, with a window of at most one week |
+| `frequencycaps` (ads and campaigns) | `{"frequencyCapList": [cap, ...]}`, at most 5 caps. A cap is `{"entityType": "AD" or "CAMPAIGN", "eventType": "CSC" (render) or "CLK" (click), "userCap": true, "timeFrame": {"maxCount": n, "value": n, "timeWindowType": "MINUTE", "HOUR", "DAY" or "WEEK"}}`, all required, with a window of at most one week and a `maxCount` of at most 1,000, which is what the subscriber keeps |
 
 Amounts are in whole units of the currency, more than 0, at most 1,000,000,000 and with at most 6 decimal places,
 because the ad server counts money in micros (millionths) in a 64-bit integer. CPD bids and caps across all users
@@ -125,4 +125,6 @@ python -m coverage report
   what every entity shares: reading the JSON body and the `?state=` endpoints.
 - `app/enums/states.py`: the five states an entity can be in.
 - `app/cache/`: rebuilds the Redis projection of active campaigns/ads/creatives
-  that ad-server-svc serves from.
+  that ad-server-svc serves from. A CPC ad is cached with its clicks and renders from
+  MongoDB, as `stats`, for the ad server's ranking. If MongoDB is down the ads are
+  cached without them.

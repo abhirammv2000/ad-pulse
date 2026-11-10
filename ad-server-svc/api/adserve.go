@@ -3,6 +3,7 @@ package api
 import (
 	"adserver/cache"
 	"adserver/util"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -37,7 +38,16 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
-	campaigns, err := server.store.Get("campaigns")
+	// Every Redis call of this request shares one deadline, so a slow Redis can't
+	// hold a request for long. Past it the request fails and nothing is served.
+	rctx := ctx.Request.Context()
+	if server.config.RedisTimeout > 0 {
+		var cancel context.CancelFunc
+		rctx, cancel = context.WithTimeout(rctx, server.config.RedisTimeout)
+		defer cancel()
+	}
+
+	campaigns, err := server.store.Get(rctx, "campaigns")
 	if errors.Is(err, cache.ErrNotFound) {
 		// The cache has not been filled yet, so there is nothing to serve.
 		campaigns = "[]"
@@ -56,6 +66,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 	// once. Ranking inside the loop would score each campaign against only a
 	// prefix of the candidates.
 	var activeAds []cache.Ad
+	liveCampaigns := map[string]cache.Campaign{}
 	for _, campaign := range campaignList {
 		startDate, err := util.GetTime(campaign.StartDate)
 		if err != nil {
@@ -70,8 +81,9 @@ func (server *Server) adserve(ctx *gin.Context) {
 		if !util.WithinDuration(startDate, endDate) {
 			continue
 		}
+		liveCampaigns[campaign.CampaignID] = campaign
 
-		ads, err := server.store.HGetAll(campaign.CampaignID)
+		ads, err := server.store.HGetAll(rctx, campaign.CampaignID)
 		if err != nil {
 			internalError(ctx, err)
 			return
@@ -89,16 +101,40 @@ func (server *Server) adserve(ctx *gin.Context) {
 		}
 	}
 
+	activeAds, err = server.withinBudget(rctx, activeAds, liveCampaigns)
+	if err != nil {
+		internalError(ctx, err)
+		return
+	}
+
+	userID := userOf(reqBody)
+	activeAds, err = server.withinCaps(rctx, activeAds, liveCampaigns, userID)
+	if err != nil {
+		internalError(ctx, err)
+		return
+	}
+
+	// The events of a capped ad must feed this user's counters, so its tracking
+	// URLs say which ones.
+	counters := map[string][]string{}
+	if userID != "" {
+		for _, ad := range activeAds {
+			if caps := capsOf(ad, liveCampaigns); len(caps) > 0 {
+				counters[ad.AdID] = countersFor(caps)
+			}
+		}
+	}
+
 	if len(activeAds) == 0 {
 		ctx.JSON(http.StatusNoContent, nil)
 		return
 	}
 
-	rankedAds := util.RankAds(activeAds)
-	bids, err := server.getBids(cache.BidParams{
-		RankedAds:   &rankedAds,
+	bids, err := server.getBids(rctx, newRanking(activeAds), cache.BidParams{
 		RequestBody: reqBody,
 		AdUnitId:    reqParams.AdUnitId,
+		UserID:      userID,
+		Counters:    counters,
 	})
 	if err != nil {
 		log.Printf("no bid for ad unit %s: %v", reqParams.AdUnitId, err)
@@ -142,6 +178,14 @@ func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
 		// A rejected key is a configuration fault, not a missing publisher. Saying "not found" here would make
 		// every ad request fail with a misleading error.
 		log.Printf("the ad manager rejected the API key while checking the %s; check AD_MANAGER_API_KEY", label)
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
+		return false
+	}
+	if resp.StatusCode >= 500 {
+		// The manager failed, so nobody knows whether the publisher exists. The load
+		// test found this answered as "not found" while the manager's database dropped
+		// connections.
+		log.Printf("the ad manager answered %d while checking the %s", resp.StatusCode, label)
 		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
 		return false
 	}

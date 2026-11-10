@@ -48,6 +48,14 @@ func (m *Money) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Nanos is the amount in nanos, a thousandth of a micro. Spend is counted in
+// nanos so that a CPM render, which costs a thousandth of the bid, is always a
+// whole number. The ad manager caps amounts at a billion, which keeps this far
+// inside an int64.
+func (m Money) Nanos() int64 {
+	return int64(m) * 1000
+}
+
 // MarshalJSON writes the amount back in whole units, the way the ad manager stores it.
 func (m Money) MarshalJSON() ([]byte, error) {
 	return []byte(m.String()), nil

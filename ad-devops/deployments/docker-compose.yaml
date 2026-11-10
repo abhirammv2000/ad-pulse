@@ -43,15 +43,20 @@ services:
       timeout: 5s
       retries: 10
 
+  # A replica set of one, because the subscriber counts each event in a transaction and a standalone server does not
+  # run transactions. The healthcheck starts the set the first time and passes once this member is the primary.
+  # The member's address is mongodb:27017, which only resolves inside this network, so from the host connect with
+  # mongodb://localhost:27017/?directConnection=true.
   mongodb:
     image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status() } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
   # Local stand-in for GCP Pub/Sub. Client libraries in both Go and Python
   # switch to it automatically when PUBSUB_EMULATOR_HOST is set - no real GCP
@@ -158,10 +163,14 @@ services:
       GCP_PROJECT_ID: adpulse-local
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       MONGODB_URI: mongodb://mongodb:27017
+      # Spend totals are copied here for the ad server's budget check.
+      REDIS_HOST: redis
     depends_on:
       pubsub-init:
         condition: service_completed_successfully
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   ad-manager-frontend:

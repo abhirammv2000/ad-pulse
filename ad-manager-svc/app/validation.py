@@ -23,9 +23,11 @@ WINDOW_SECONDS = {'MINUTE': 60, 'HOUR': 3600, 'DAY': 86400, 'WEEK': 604800}
 MAX_DECIMAL_PLACES = 6
 MAX_AMOUNT = 1_000_000_000
 
-# Each cap costs a Redis read on every ad request, and the ad server keeps one week of events per user.
+# Each cap costs a Redis read on every ad request. The subscriber keeps one week of events, and at most
+# 1,000 of them, per user and ad or campaign, so a longer window or a higher count could never be reached.
 MAX_FREQUENCY_CAPS = 5
 MAX_CAP_WINDOW_SECONDS = WINDOW_SECONDS['WEEK']
+MAX_CAP_COUNT = 1000
 
 # Days are 1 to 7 with Sunday as 1. Hours are 0 to 23, in UTC.
 TARGETING_RANGES = {'dayTargeting': (1, 7), 'timeTargeting': (0, 23)}
@@ -127,7 +129,7 @@ def _check_frequency_cap(cap, field):
     frame = cap['timeFrame']
     _check_object(frame, frame_field, frame_keys, required=frame_keys)
     _check_choice(frame['timeWindowType'], f'{frame_field}.timeWindowType', tuple(WINDOW_SECONDS))
-    _check_whole_number(frame['maxCount'], f'{frame_field}.maxCount', 1)
+    _check_whole_number(frame['maxCount'], f'{frame_field}.maxCount', 1, MAX_CAP_COUNT)
     _check_whole_number(frame['value'], f'{frame_field}.value', 1)
     if frame['value'] * WINDOW_SECONDS[frame['timeWindowType']] > MAX_CAP_WINDOW_SECONDS:
         raise ValidationError(f'{frame_field}.value', 'makes the window longer than one week')

@@ -6,15 +6,37 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
+// maxEventAge is how long after an ad was served its click or render still
+// counts. The subscriber stops counting at 48 hours and remembers what it has
+// counted for 72, so an event replayed later can never be counted twice. See
+// adpulse-engagement-subscriber-svc/app.py.
+const maxEventAge = 24 * time.Hour
+
+// maxClockSkew is how far in the future a serve time may be, because the ad
+// server's clock and this one may not quite agree.
+const maxClockSkew = 5 * time.Minute
+
+// now is where the current time comes from. Tests replace it.
+var now = time.Now
+
+// servedBid is the part of an iid this service checks. The iid itself is
+// published unchanged.
+type servedBid struct {
+	BidID    string `json:"bidid"`
+	ServedAt int64  `json:"requesttimestamp"` // Unix seconds, set by the ad server
+}
+
 // engagementHandler records one engagement event.
 //
 // The ad server hands the browser a URL carrying `iid`: a base64-encoded JSON
-// blob identifying the ad, creative, campaign and advertiser. We validate it and
-// forward it to the Pub/Sub topic that the subscriber service aggregates from.
+// blob identifying the bid, ad, creative, campaign and advertiser, and when the
+// ad was served. We validate it and forward it to the Pub/Sub topic that the
+// subscriber service counts from. An event served too long ago gets a 410.
 //
 // When secret is not empty the URL must also carry a `sig` parameter, the HMAC
 // of the iid text, or the request is refused. With an empty secret nothing is
@@ -35,9 +57,22 @@ func engagementHandler(publisher Publisher, topic, secret string) gin.HandlerFun
 
 		// Decode to confirm the payload is well-formed before publishing;
 		// the subscriber would otherwise fail on every redelivery.
-		var iid map[string]interface{}
-		if err := json.Unmarshal(decoded, &iid); err != nil {
+		var bid servedBid
+		if err := json.Unmarshal(decoded, &bid); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "iid is not valid JSON"})
+			return
+		}
+		if bid.BidID == "" || bid.ServedAt == 0 {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "iid has no bid id or serve time"})
+			return
+		}
+		age := now().Sub(time.Unix(bid.ServedAt, 0))
+		if age > maxEventAge {
+			ctx.JSON(http.StatusGone, gin.H{"error": "this ad was served too long ago to count"})
+			return
+		}
+		if age < -maxClockSkew {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "iid has a serve time in the future"})
 			return
 		}
 

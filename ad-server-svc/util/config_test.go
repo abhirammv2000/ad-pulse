@@ -1,6 +1,29 @@
 package util
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestLoadConfig_TheRedisDeadlineDefaultsTo100msAndCanBeChanged(t *testing.T) {
+	t.Setenv("REDIS_TIMEOUT", "")
+	config, err := LoadConfig(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.RedisTimeout != 100*time.Millisecond {
+		t.Errorf("default RedisTimeout = %v, want 100ms", config.RedisTimeout)
+	}
+
+	t.Setenv("REDIS_TIMEOUT", "250ms")
+	config, err = LoadConfig(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.RedisTimeout != 250*time.Millisecond {
+		t.Errorf("RedisTimeout = %v, want the 250ms from REDIS_TIMEOUT", config.RedisTimeout)
+	}
+}
 
 // viper's AutomaticEnv only resolves keys it already knows about, so a field that is added to Config but not to
 // defaults silently never reads its environment variable. These tests catch that for the manager key.

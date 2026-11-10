@@ -63,13 +63,21 @@ spec:
     metadata: {labels: {app: mongodb}}
     spec:
       containers:
+        # A replica set of one, because the subscriber counts events in transactions. The probe starts the set the
+        # first time and passes once this member is the primary.
         - name: mongodb
           image: mongo:7
+          args: [--replSet, rs0, --bind_ip_all]
           ports: [{containerPort: 27017}]
           readinessProbe:
-            exec: {command: [mongosh, --quiet, --eval, "db.adminCommand('ping')"]}
+            exec:
+              command:
+                - mongosh
+                - --quiet
+                - --eval
+                - "try { rs.status() } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
             periodSeconds: 5
-            timeoutSeconds: 5
+            timeoutSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -77,6 +85,9 @@ metadata: {name: mongodb, namespace: adpulse-verify}
 spec:
   selector: {app: mongodb}
   ports: [{port: 27017}]
+  # The member's address is this Service, and the pod is only ready after the set exists. Publishing the address
+  # before the pod is ready breaks that loop.
+  publishNotReadyAddresses: true
 ---
 apiVersion: apps/v1
 kind: Deployment

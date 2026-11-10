@@ -8,6 +8,7 @@ import (
 	"adpulse-engagement-svc.com/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -31,9 +32,11 @@ func main() {
 	// click and render pings
 	engagementGroup := router.Group("/engagement")
 	{
-		engagementGroup.GET("/clk", services.ClickServiceHandler(publisher))
-		engagementGroup.GET("/csc", services.CSCServiceHandler(publisher))
+		engagementGroup.GET("/clk", services.Counted("click", services.ClickServiceHandler(publisher)))
+		engagementGroup.GET("/csc", services.Counted("render", services.CSCServiceHandler(publisher)))
 	}
+
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {

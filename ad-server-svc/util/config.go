@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -17,6 +18,9 @@ type Config struct {
 	ClickUrl         string `mapstructure:"CLICK_URL"`
 	RenderUrl        string `mapstructure:"RENDER_URL"`
 	TrackingSecret   string `mapstructure:"TRACKING_SECRET"`
+	// RedisTimeout is how long all of one request's Redis calls may take together,
+	// such as "100ms". Zero means no limit.
+	RedisTimeout time.Duration `mapstructure:"REDIS_TIMEOUT"`
 }
 
 // defaults doubles as the list of keys viper will read from the environment:
@@ -33,6 +37,7 @@ var defaults = map[string]string{
 	"CLICK_URL":          "http://localhost:8081/engagement/clk",
 	"RENDER_URL":         "http://localhost:8081/engagement/csc",
 	"TRACKING_SECRET":    "",
+	"REDIS_TIMEOUT":      "100ms",
 }
 
 // LoadConfig reads configuration from app.env in path, falling back to

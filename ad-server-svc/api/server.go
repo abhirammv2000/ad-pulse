@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // adManagerTimeout is how long one publisher or ad unit lookup may take. Every
@@ -33,6 +34,7 @@ type Server struct {
 	store      cache.Store
 	httpClient *http.Client
 	known      *knownEntities
+	now        func() time.Time // the clock budgets and pacing use, replaced in tests
 
 	// Decoded campaigns and ads, kept by their JSON text. See contentCache.
 	campaignsDecoded *contentCache[cache.CampaignList]
@@ -45,6 +47,7 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 		store:      store,
 		httpClient: &http.Client{Timeout: adManagerTimeout},
 		known:      newKnownEntities(),
+		now:        time.Now,
 
 		campaignsDecoded: newContentCache[cache.CampaignList](decodedCampaignListLimit),
 		adsDecoded:       newContentCache[cache.Ad](decodedAdLimit),
@@ -61,7 +64,8 @@ func (server *Server) setupRouter() {
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(config))
 	router.GET("/", server.healthCheck)
-	router.POST("/adserve", server.adserve)
+	router.POST("/adserve", measured(server.adserve))
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	server.router = router
 }

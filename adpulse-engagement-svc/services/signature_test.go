@@ -54,16 +54,23 @@ func signedQuery(secret, iid string) string {
 	return "?iid=" + url.QueryEscape(iid) + "&sig=" + signIID(secret, iid)
 }
 
+// freshSignedIID is the base64 iid of an ad served just now, ready to sign.
+func freshSignedIID() (raw, encoded string) {
+	raw = freshIID("AD1")
+	return raw, base64.StdEncoding.EncodeToString([]byte(raw))
+}
+
 func TestSignedHandlerAcceptsAValidSignature(t *testing.T) {
 	publisher := &fakePublisher{}
+	raw, encoded := freshSignedIID()
 
-	recorder := serve(engagementHandler(publisher, "click-topic", vectorSecret), signedQuery(vectorSecret, vectorIID))
+	recorder := serve(engagementHandler(publisher, "click-topic", vectorSecret), signedQuery(vectorSecret, encoded))
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 	}
-	if got := string(publisher.published["click-topic"]); got != `{"adid":"AD1"}` {
-		t.Errorf("published %q", got)
+	if got := string(publisher.published["click-topic"]); got != raw {
+		t.Errorf("published %q, want %q", got, raw)
 	}
 }
 
@@ -98,7 +105,7 @@ func TestSignedHandlerRefusesUnsignedAndForgedRequests(t *testing.T) {
 func TestUnsignedModeStillAcceptsPlainUrls(t *testing.T) {
 	publisher := &fakePublisher{}
 
-	recorder := serve(engagementHandler(publisher, "click-topic", ""), "?iid="+vectorIID)
+	recorder := serve(engagementHandler(publisher, "click-topic", ""), iidQuery(freshIID("AD1")))
 
 	if recorder.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 when no secret is configured", recorder.Code)
@@ -114,7 +121,8 @@ func TestHandlersReadTheSecretFromTheEnvironment(t *testing.T) {
 	if code := serve(CSCServiceHandler(&fakePublisher{}), "?iid="+vectorIID).Code; code != http.StatusForbidden {
 		t.Errorf("render handler accepted an unsigned url: status %d", code)
 	}
-	if code := serve(CSCServiceHandler(&fakePublisher{}), signedQuery(vectorSecret, vectorIID)).Code; code != http.StatusOK {
+	_, encoded := freshSignedIID()
+	if code := serve(CSCServiceHandler(&fakePublisher{}), signedQuery(vectorSecret, encoded)).Code; code != http.StatusOK {
 		t.Errorf("render handler refused a signed url: status %d", code)
 	}
 }

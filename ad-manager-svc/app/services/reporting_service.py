@@ -21,6 +21,13 @@ def get_report():
     return list(_reports().find({}))
 
 
+def engagement_counts(ad_ids):
+    """The report row, with its click and render counts, of each of these ads that has one."""
+    if not ad_ids:
+        return {}
+    return {row['_id']: row for row in _reports().find({'_id': {'$in': list(ad_ids)}})}
+
+
 def get_report_by_ad_id(ad_id):
     return list(_reports().find({'_id': ad_id}))
 

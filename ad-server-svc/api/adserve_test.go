@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -28,16 +29,46 @@ const dateLayout = "2006-01-02T15:04:05"
 
 // fakeStore is an in-memory cache.Store.
 type fakeStore struct {
-	values map[string]string
-	hashes map[string]map[string]string
-	getErr error
+	values    map[string]string
+	hashes    map[string]map[string]string
+	getErr    error
+	mgetErr   error
+	mgetCalls int
+
+	sets       map[string]map[string]int64 // sorted sets: member to score
+	countErr   error
+	countCalls int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{values: map[string]string{}, hashes: map[string]map[string]string{}}
+	return &fakeStore{values: map[string]string{}, hashes: map[string]map[string]string{}, sets: map[string]map[string]int64{}}
 }
 
-func (f *fakeStore) Get(key string) (string, error) {
+// addEvent puts one member in a sorted set, the way the subscriber records an event.
+func (f *fakeStore) addEvent(key, member string, score int64) {
+	if f.sets[key] == nil {
+		f.sets[key] = map[string]int64{}
+	}
+	f.sets[key][member] = score
+}
+
+func (f *fakeStore) CountSince(_ context.Context, queries []cache.CountQuery) ([]int64, error) {
+	f.countCalls++
+	if f.countErr != nil {
+		return nil, f.countErr
+	}
+	counts := make([]int64, len(queries))
+	for i, query := range queries {
+		for _, score := range f.sets[query.Key] {
+			if score > query.Since {
+				counts[i]++
+			}
+		}
+	}
+	return counts, nil
+}
+
+func (f *fakeStore) Get(_ context.Context, key string) (string, error) {
 	if f.getErr != nil {
 		return "", f.getErr
 	}
@@ -48,17 +79,29 @@ func (f *fakeStore) Get(key string) (string, error) {
 	return value, nil
 }
 
-func (f *fakeStore) Set(key, value string) error {
+func (f *fakeStore) Set(_ context.Context, key, value string) error {
 	f.values[key] = value
 	return nil
 }
 
-func (f *fakeStore) HGetAll(key string) (map[string]string, error) {
+func (f *fakeStore) HGetAll(_ context.Context, key string) (map[string]string, error) {
 	return f.hashes[key], nil
 }
 
-func (f *fakeStore) GetCreatives(creativeID string) (*cache.Creative, error) {
-	raw, err := f.Get(creativeID)
+func (f *fakeStore) MGet(_ context.Context, keys []string) ([]string, error) {
+	f.mgetCalls++
+	if f.mgetErr != nil {
+		return nil, f.mgetErr
+	}
+	out := make([]string, len(keys))
+	for i, key := range keys {
+		out[i] = f.values[key]
+	}
+	return out, nil
+}
+
+func (f *fakeStore) GetCreatives(ctx context.Context, creativeID string) (*cache.Creative, error) {
+	raw, err := f.Get(ctx, creativeID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,19 +249,74 @@ func TestAdserve_TrackingUrlsCarryTheAdIdentity(t *testing.T) {
 		if !strings.HasPrefix(tracking.url, tracking.prefix) {
 			t.Fatalf("url %q does not start with %q", tracking.url, tracking.prefix)
 		}
-		raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(tracking.url, tracking.prefix))
-		if err != nil {
-			t.Fatalf("iid is not base64: %v", err)
-		}
-		var iid cache.IIDData
-		if err := json.Unmarshal(raw, &iid); err != nil {
-			t.Fatalf("iid is not JSON: %v", err)
-		}
+		iid := iidFrom(t, tracking.url)
 		if iid.AdID != "AD1" || iid.CreativeID != "CR1" || iid.CampaignID != "C1" ||
 			iid.AdvertiserID != "A1" || iid.AdUnitId != "ADU1" || iid.RequestTimeStamp == 0 {
 			t.Errorf("iid has the wrong identity: %+v", iid)
 		}
+		// The bid id is what the subscriber uses to count each event once.
+		if iid.BidID == "" || iid.BidID != bid.Id {
+			t.Errorf("iid bid id = %q, want the bid's own id %q", iid.BidID, bid.Id)
+		}
 	}
+}
+
+func TestAdserve_EachBidHasItsOwnId(t *testing.T) {
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	server := newTestServer(t, store, adManager(t).URL)
+
+	first := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+	second := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+
+	if first.Id == second.Id || iidFrom(t, first.Ext.ClickUrl).BidID == iidFrom(t, second.Ext.ClickUrl).BidID {
+		t.Errorf("two serves of the same ad share a bid id: %s", first.Id)
+	}
+}
+
+func TestAdserve_TrackingUrlsSurviveAPlusInTheBase64(t *testing.T) {
+	store := newFakeStore()
+	// A '~' that falls on every third byte becomes '+' in base64, and three in a row make sure one does.
+	// Unescaped, a query string reads '+' as a space and the iid no longer decodes.
+	ad := liveAd("AD~~~", 1)
+	seedCampaign(t, store, ad)
+	server := newTestServer(t, store, adManager(t).URL)
+	server.config.TrackingSecret = "test-secret"
+
+	bid := decodeResponse(t, serve(t, server, validQuery, slotRequest())).Bid[0]
+
+	parsed, err := neturl.Parse(bid.Ext.ClickUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := parsed.Query().Get("iid")
+	if !strings.Contains(encoded, "+") {
+		t.Fatalf("the test needs an iid with + in its base64, got %s", encoded)
+	}
+	if got := iidFrom(t, bid.Ext.ClickUrl).AdID; got != ad.AdID {
+		t.Errorf("ad id came back as %q, want %q", got, ad.AdID)
+	}
+	if sig := parsed.Query().Get("sig"); sig != util.SignIID("test-secret", encoded) {
+		t.Errorf("the signature does not match the iid the engagement service will read")
+	}
+}
+
+// iidFrom reads the iid out of a tracking URL the way the engagement service does.
+func iidFrom(t *testing.T, trackingURL string) cache.IIDData {
+	t.Helper()
+	parsed, err := neturl.Parse(trackingURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(parsed.Query().Get("iid"))
+	if err != nil {
+		t.Fatalf("iid is not base64: %v", err)
+	}
+	var iid cache.IIDData
+	if err := json.Unmarshal(raw, &iid); err != nil {
+		t.Fatalf("iid is not JSON: %v", err)
+	}
+	return iid
 }
 
 func TestAdserve_BothParametersAreRequired(t *testing.T) {
@@ -270,6 +368,23 @@ func TestAdserve_ManagerDownIsA502(t *testing.T) {
 
 	if recorder.Code != http.StatusBadGateway {
 		t.Errorf("status = %d, want 502", recorder.Code)
+	}
+}
+
+func TestAdserve_AManagerFailureIsABadGatewayNotAMissingPublisher(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	server := newTestServer(t, store, failing.URL)
+
+	if code := serve(t, server, validQuery, slotRequest()).Code; code != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502 when the manager fails", code)
+	}
+	if server.known.has("/publisher/publisherid/P1") {
+		t.Error("a failed check was remembered as a known publisher")
 	}
 }
 

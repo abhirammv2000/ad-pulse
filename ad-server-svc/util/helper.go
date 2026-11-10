@@ -3,12 +3,8 @@ package util
 import (
 	"adserver/cache"
 	"log"
-	"sort"
 	"time"
 )
-
-// timeLayout is the format the ad manager writes dates in.
-const timeLayout = "2006-01-02T15:04:05"
 
 // clock is where the current time comes from. Tests replace it. Flight dates and
 // the day and hour targeting rules are all read in UTC.
@@ -32,19 +28,14 @@ func WithinDuration(startDate, endDate time.Time) bool {
 }
 
 func GetTime(strTime string) (time.Time, error) {
-	return time.Parse(timeLayout, strTime)
+	return time.Parse(cache.DateLayout, strTime)
 }
 
 // AdActive reports whether now falls inside the ad's own flight dates.
 func AdActive(ad cache.Ad) bool {
-	startDate, err := GetTime(ad.StartDate)
+	startDate, endDate, err := ad.Flight()
 	if err != nil {
-		log.Printf("ad %s has an unparseable start date: %v", ad.AdID, err)
-		return false
-	}
-	endDate, err := GetTime(ad.EndDate)
-	if err != nil {
-		log.Printf("ad %s has an unparseable end date: %v", ad.AdID, err)
+		log.Printf("ad %s has an unparseable %v", ad.AdID, err)
 		return false
 	}
 	return WithinDuration(startDate, endDate)
@@ -81,14 +72,6 @@ func IsAdAvailable(ad cache.Ad, adParam cache.RequestParams) bool {
 		adInTargetedAdUnit(ad, adParam) &&
 		adInDayTargeting(ad) &&
 		adInTimeTargeting(ad)
-}
-
-// RankAds orders candidates by ad priority, lowest number first.
-func RankAds(ads []cache.Ad) []cache.Ad {
-	sort.SliceStable(ads, func(i, j int) bool {
-		return ads[i].AdPriority < ads[j].AdPriority
-	})
-	return ads
 }
 
 func contains[T comparable](values []T, target T) bool {

@@ -3,11 +3,12 @@ package api
 import (
 	"adserver/cache"
 	"adserver/util"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
+	"net/url"
 
 	"github.com/google/uuid"
 )
@@ -21,21 +22,23 @@ const imageAssetType = 3
 // Each creative is read from the cache once per request, and the walk stops as
 // soon as every impression has a bid: a later ad could not match anything, so
 // reading its creative would only cost a round trip.
-func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
+func (server *Server) getBids(ctx context.Context, candidates *ranking, bidParams cache.BidParams) (*[]cache.Bid, error) {
 	var bids []cache.Bid
 	impIDTaken := make(map[string]bool)
-	requestTime := time.Now().Unix()
+	// The same clock as the cap windows: a cap counts events by this time.
+	requestTime := server.now().Unix()
 	wanted := distinctImpressionIDs(bidParams.RequestBody.Imp)
 	creatives := make(map[string]creativeLookup)
 
-	for _, ad := range *bidParams.RankedAds {
-		if len(impIDTaken) >= wanted {
+	for len(impIDTaken) < wanted {
+		ad, ok := candidates.next()
+		if !ok {
 			break
 		}
 
 		lookup, seen := creatives[ad.CreativeID]
 		if !seen {
-			lookup.creative, lookup.err = server.store.GetCreatives(ad.CreativeID)
+			lookup.creative, lookup.err = server.store.GetCreatives(ctx, ad.CreativeID)
 			creatives[ad.CreativeID] = lookup
 		}
 		if lookup.err != nil {
@@ -105,15 +108,25 @@ func matchImpression(creative *cache.Creative, impressions []cache.Impression, t
 
 func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID string, bidParams cache.BidParams, requestTime int64) (cache.Bid, error) {
 	// The engagement service decodes this blob back out of the click and render
-	// URLs to attribute the event.
-	iid, err := json.Marshal(cache.IIDData{
+	// URLs to attribute the event. Both URLs carry the same bid id, so one served
+	// bid can be counted for at most one click and one render.
+	bidID := uuid.New().String()
+	identity := cache.IIDData{
+		BidID:            bidID,
+		BidType:          ad.BidInfo.BidType,
+		PriceNanos:       priceNanos(ad),
 		AdID:             ad.AdID,
 		CreativeID:       ad.CreativeID,
 		AdUnitId:         bidParams.AdUnitId,
 		CampaignID:       ad.CampaignID,
 		AdvertiserID:     ad.AdvertiserID,
 		RequestTimeStamp: requestTime,
-	})
+	}
+	// Only a capped ad's URLs carry the user id, because only they need it.
+	if counters := bidParams.Counters[ad.AdID]; len(counters) > 0 {
+		identity.UserID, identity.Counters = bidParams.UserID, counters
+	}
+	iid, err := json.Marshal(identity)
 	if err != nil {
 		return cache.Bid{}, fmt.Errorf("encoding impression id for ad %s: %w", ad.AdID, err)
 	}
@@ -124,15 +137,17 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 	}
 
 	// With a tracking secret the URLs carry a signature, so the engagement
-	// service can tell a URL we issued from one somebody made up.
+	// service can tell a URL we issued from one somebody made up. The signature
+	// is over the base64 text, which is escaped for the URL: base64 can contain
+	// "+", and a query string would read that as a space.
 	encodedIID := base64.StdEncoding.EncodeToString(iid)
-	tracking := "?iid=" + encodedIID
+	tracking := "?iid=" + url.QueryEscape(encodedIID)
 	if server.config.TrackingSecret != "" {
 		tracking += "&sig=" + util.SignIID(server.config.TrackingSecret, encodedIID)
 	}
 
 	return cache.Bid{
-		Id:    uuid.New().String(),
+		Id:    bidID,
 		Impid: impID,
 		AdID:  ad.AdID,
 		Adm:   string(adm),

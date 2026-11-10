@@ -2,7 +2,7 @@
 
 An ad-serving platform built from six small services. An ad manager lets you create publishers, advertisers, campaigns, ads and creatives. An ad server picks the best ad for a page slot. An engagement pipeline counts clicks and renders for each ad.
 
-**Status: finished.** No further development is planned. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
+**Status: working.** The parts that involve money are in: exactly-once event counting, budgets with pacing, frequency caps, and ranking by price. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
 
 ```
 ad-manager-frontend -> ad-manager-svc -> Postgres
@@ -24,11 +24,24 @@ ad-manager-frontend -> ad-manager-svc -> Postgres
 |---|---|---|
 | [ad-manager-svc](ad-manager-svc/) | Python, Flask | CRUD for the six entities, the cache refresh endpoints, and `/reports` |
 | [ad-manager-frontend](ad-manager-frontend/) | React | Dashboard for the above, plus a page that requests and shows a live ad |
-| [ad-server-svc](ad-server-svc/) | Go, Gin | Filters cached ads by flight dates and targeting, ranks them, returns bids |
+| [ad-server-svc](ad-server-svc/) | Go, Gin | Filters cached ads by flight dates, targeting, budget and frequency caps, ranks them, returns bids |
 | [ad-refresh-cache-svc](ad-refresh-cache-svc/) | Python | Calls the manager's cache endpoints on a timer |
 | [adpulse-engagement-svc](adpulse-engagement-svc/) | Go, Gin | Takes click and render pings and publishes them to Pub/Sub |
-| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Reads Pub/Sub and keeps click and render counts per ad in MongoDB |
+| [adpulse-engagement-subscriber-svc](adpulse-engagement-subscriber-svc/) | Python | Reads Pub/Sub, counts each click and render once in MongoDB, and adds up spend for the budgets |
 | [ad-devops](ad-devops/) | Helm, Docker Compose | The Kubernetes chart and the local stack |
+
+## Budgets, frequency caps, counting and ranking
+
+Every click and render is counted exactly once, even when Pub/Sub delivers a message
+again or a tracking URL is opened twice: the subscriber records each event once under its
+id, then folds recorded events into the counts in batches, each batch in one MongoDB
+transaction that also marks its events folded. Each event's price, fixed when the ad is served, is
+added up per ad and campaign, and the ad server stops serving an ad or campaign that has
+spent its total or daily budget, and spreads a daily budget over the day. Per-user
+frequency caps are counted in Redis sorted sets. Within a priority, ads compete on eCPM,
+with a smoothed click-through rate for CPC ads, and the bidder takes them from a heap.
+[docs/DESIGN.md](docs/DESIGN.md) has the design, the trade-offs, what failed and why, and
+a load test that found where it falls short.
 
 ## Run it
 
@@ -63,7 +76,9 @@ helm lint ad-devops/helm/ad-pulse
 ruff check .
 ```
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request, plus `gofmt`, a coverage table for each service, and a job that checks the database migrations against a real Postgres. The unit tests mock the database, Redis and Pub/Sub, so they need none of them. The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs and the manager API key turned on.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all of these on every push and pull request, plus `gofmt`, a coverage table for each service, and a job that checks the database migrations against a real Postgres. Most unit tests mock the database, Redis and Pub/Sub. The subscriber's exactly-once and spend tests run against a real MongoDB replica set and Redis, because the guarantees live there, and CI starts both; they skip without them (see [the subscriber README](adpulse-engagement-subscriber-svc/README.md#testing)). The full stack is tested separately: `integration_test.py` against the Docker Compose stack, with signed tracking URLs and the manager API key turned on. It checks that replayed URLs count once, that an ad stops serving once its budget is spent, and that a frequency cap stops one user and not another.
+
+`loadtest.py` drives the same stack hard: it serves one ad with a budget from 16 threads until the budget stops it, and reports latency and how far spend went past the budget. Its last results are in [docs/DESIGN.md](docs/DESIGN.md#10-capacity-and-a-measured-run).
 
 The lint rules in [`ruff.toml`](ruff.toml) are the ones that find real mistakes (undefined names, unused imports), not style. Coverage is reported, and there is no minimum a change has to meet.
 
@@ -85,6 +100,8 @@ Measured on a laptop (Go 1.23, 2 cores in a Linux container). The round-trip row
 
 What is still slow: one `HGetAll` per campaign. With many campaigns that is the next cost, and the fix would be a different Redis layout or a pipeline, not more caching here. The race detector runs on all tests, including a test with eight goroutines hammering the parse cache while generations rotate.
 
+Later, ranking (a sort that moved whole ads) and date parsing were most of what was left. Taking ads from a heap and parsing dates once made a 50 x 20 request about 25% faster, 1.71 ms to 1.27 ms. The [ad server README](ad-server-svc/README.md#ranking) has the measurements, including a first attempt that did not help.
+
 ## Deploying
 
 The Helm chart in [ad-devops/helm/ad-pulse](ad-devops/helm/ad-pulse/) deploys every service. Credentials never go in `values.yaml`. Pass them from a values file that isn't committed, or with `--set-string` from CI secrets:
@@ -98,13 +115,14 @@ The `stage` and `main` branches deploy through `build_push.yml` and `main.yaml`.
 
 To turn on the manager API key in a cluster, set the Actions secret `MANAGER_API_KEY`. The workflows pass it to the chart as `adpulse.secrets.managerApiKey`, which gives it to the manager as `API_KEY` and to the ad server and the refresh service as `AD_MANAGER_API_KEY`. The integration test after each deploy sends it too. If the secret is not set the manager stays open. See [the manager README](ad-manager-svc/README.md) for what the key protects.
 
-**What has and has not been tested.** CI renders the chart and checks every manifest against the Kubernetes 1.30 schemas, and the workflows were checked with `actionlint`. The chart has also been installed on a real Kubernetes cluster (Docker Desktop's, with the databases and a Pub/Sub emulator running in it), where `helm test` and the end-to-end test passed. The steps are in [ad-devops/README.md](ad-devops/README.md#try-the-chart-on-a-local-kubernetes-cluster). It has not been run on GKE or any cloud, because I have no access to the original team's cluster or its Docker Hub account, and the deploy workflows have never run. The image tags in `values.yaml` also point at images that team built earlier, which do not contain the API key or the signed URLs. To deploy this code, build the images from this repository (the Compose file does) and set the tags.
+**What has and has not been tested.** CI renders the chart and checks every manifest against the Kubernetes 1.30 schemas, and the workflows were checked with `actionlint`. The chart has also been installed on a real Kubernetes cluster (Docker Desktop's, with the databases and a Pub/Sub emulator running in it), where `helm test` and the end-to-end test passed. The steps are in [ad-devops/README.md](ad-devops/README.md#try-the-chart-on-a-local-kubernetes-cluster). That was before MongoDB became a replica set. The new MongoDB manifest was checked on its own on a kind cluster (it starts the set, and a transaction from another pod commits), but the whole chart has not been installed again since. It has not been run on GKE or any cloud, because I have no access to the original team's cluster or its Docker Hub account, and the deploy workflows have never run. The image tags in `values.yaml` also point at images that team built earlier, which do not contain the API key or the signed URLs. To deploy this code, build the images from this repository (the Compose file does) and set the tags.
 
 ## Known gaps
 
 These are the limits I know about and chose not to build. If this work continued, I would take them roughly in this order:
 
-- **Click and render URLs can be replayed.** They are signed when `TRACKING_SECRET` is set (the compose stack sets it), so nobody can make up an event for an ad. A real URL can still be hit many times, and each hit counts. Without the secret the URLs are not checked at all.
+- **An ad can still overspend by what is in flight.** Spend is counted when renders and clicks arrive, so the last events before a budget runs out still land. In the load test a $1 budget spent $1.079, 7.9% over. Reserving the price when an ad is served would bring this near zero. An earlier version was much worse, $4.68, because one busy ad's events fought over the same documents. [docs/DESIGN.md](docs/DESIGN.md#10-capacity-and-a-measured-run) has both runs.
+- **Tracking URLs are only checked when `TRACKING_SECRET` is set.** The compose stack sets it, so nobody can make up an event for an ad. Without the secret the URLs are not checked at all. A real URL can be opened many times, but each served bid counts for at most one click and one render: the subscriber counts every event exactly once, in a MongoDB transaction (see [the subscriber README](adpulse-engagement-subscriber-svc/README.md)). That needs MongoDB to run as a replica set.
 - **The manager API key is one shared key, and it is off unless `API_KEY` is set.** The compose stack sets it. A deployment that does not set it is open, as before. There are no users or roles, so anyone with the key can change anything. The dashboard asks for the key once per browser tab and keeps it in `sessionStorage`. CORS is open unless `CORS_ALLOWED_ORIGINS` is set.
 - **The ad server asks the manager about the publisher and ad unit.** A confirmed one is remembered for 30 seconds, so a deleted publisher can keep serving for up to that long. Each call has a 3 second timeout.
 - **Migrations exist but are run by hand.** Alembic has a baseline for the six tables, and CI checks that the models and the migrations agree. The manager still only creates missing tables when it starts and never alters one, so a change to an existing table needs `alembic upgrade head` run on purpose. Nothing runs it during a deploy.
