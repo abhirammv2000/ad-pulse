@@ -37,6 +37,11 @@ more than 5 minutes in the future (clocks that disagree by more than that) gets 
 subscriber's limits, which are what stop a late replay from being counted twice.
 See its README.
 
+## Metrics
+
+`GET /metrics` serves `engagement_events_total{event, result}`: each click and render ping by
+what happened to it (accepted, bad_signature, too_old, bad_request, publish_failed, error).
+
 ## Running
 
 ```

@@ -88,6 +88,14 @@ can come minutes after the ad was served. Google Ads makes the same kind of trad
 can spend up to twice the daily budget, and the month is capped. Getting closer to zero
 would mean reserving the price when the ad is served and releasing what never renders.
 
+**That bound assumes the subscriber keeps up, and for one hot ad it doesn't yet.** The load
+test (`loadtest.py`, results in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run))
+served one $1-budget CPM ad at about 200 renders a second, and it spent $4.68. Every render
+of one ad updates the same spend documents in a transaction, so the subscriber's threads
+retry on write conflicts (4.2 attempts an event) and it counts only about 65 a second. The
+delay from serve to counted grew to a minute, and the overspend with it. Counting in small
+batches, or splitting hot totals into shards, would fix it, and is not built.
+
 If Redis loses the totals, an ad reads as having spent nothing until its next billable
 event writes the true total back from MongoDB, so the same in-flight bound applies.
 
@@ -150,6 +158,14 @@ Measured with the benchmarks, old and new run in turn on one machine, medians of
 Sorting small keys instead of the ads themselves, the first try, made no difference:
 building every key and copying every ad into order cost what the sort saved. The heap,
 which orders only the ads the bidder asks for, is about 25% faster.
+
+## Metrics
+
+`GET /metrics` serves Prometheus metrics: `adserver_requests_total{result}` (bid, no_bid,
+bad_request, error), `adserver_request_duration_seconds`, and
+`adserver_ads_skipped_total{reason}`, which counts the candidates the budget and cap checks
+left out (total_budget, daily_budget, pacing, spend_unreadable, frequency_cap, no_user_id,
+unusable_cap). Every label has a fixed set of values.
 
 ## Layout
 

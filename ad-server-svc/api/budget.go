@@ -28,12 +28,14 @@ const pacingHeadroom = time.Hour
 
 const day = 24 * time.Hour
 
-// Reasons an ad is skipped. They are not logged, because an ad that is out of
-// budget would otherwise log on every request.
+// Reasons an ad is skipped, the label values of adserver_ads_skipped_total. They
+// are counted, not logged, because an ad that is out of budget would otherwise log
+// on every request.
 const (
-	reasonTotalBudget = "total budget spent"
-	reasonDailyBudget = "daily budget spent"
-	reasonPacing      = "ahead of pace"
+	reasonTotalBudget = "total_budget"
+	reasonDailyBudget = "daily_budget"
+	reasonPacing      = "pacing"
+	reasonUnreadable  = "spend_unreadable"
 )
 
 // spendKey names a spend total in Redis. The subscriber writes the same names.
@@ -139,16 +141,29 @@ func (server *Server) withinBudget(ctx context.Context, ads []cache.Ad, campaign
 		return nil, fmt.Errorf("asked for %d spend values and got %d", len(keys), len(values))
 	}
 
-	blocked := make([]bool, len(budgets))
+	// Why each budgeted ad or campaign may not serve now, or "".
+	reasons := make([]string, len(budgets))
 	for i, b := range budgets {
 		total, okTotal := parseSpend(keys[b.total], values[b.total])
 		today, okToday := parseSpend(keys[b.today], values[b.today])
-		blocked[i] = !okTotal || !okToday || blockedBy(b.limits, total, today, sinceMidnight) != ""
+		if !okTotal || !okToday {
+			reasons[i] = reasonUnreadable
+		} else {
+			reasons[i] = blockedBy(b.limits, total, today, sinceMidnight)
+		}
 	}
 
 	kept := make([]cache.Ad, 0, len(ads))
 	for i, ad := range ads {
-		if (adBudget[i] >= 0 && blocked[adBudget[i]]) || (campaignBudget[i] >= 0 && blocked[campaignBudget[i]]) {
+		reason := ""
+		if adBudget[i] >= 0 {
+			reason = reasons[adBudget[i]]
+		}
+		if reason == "" && campaignBudget[i] >= 0 {
+			reason = reasons[campaignBudget[i]]
+		}
+		if reason != "" {
+			adsSkipped.WithLabelValues(reason).Inc()
 			continue
 		}
 		kept = append(kept, ad)

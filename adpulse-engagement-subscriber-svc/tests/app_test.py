@@ -167,6 +167,43 @@ class CallbackTest(unittest.TestCase):
         message.ack.assert_not_called()
 
 
+class MetricsTest(unittest.TestCase):
+    """The metrics are global, so these compare counts before and after."""
+
+    def count(self, result):
+        from prometheus_client import REGISTRY
+
+        return REGISTRY.get_sample_value('subscriber_events_total', {'event': 'click', 'result': result}) or 0
+
+    def delays(self):
+        from prometheus_client import REGISTRY
+
+        return REGISTRY.get_sample_value('subscriber_serve_to_count_seconds_count') or 0
+
+    def test_every_outcome_is_counted(self):
+        callback = app.make_callback(Mock(), Mock(), Mock(), 'click')
+        before = {r: self.count(r) for r in ('counted', 'duplicate', 'too_old', 'malformed', 'failed')}
+
+        for result in ('counted', 'duplicate', 'too_old'):
+            with patch('app.record_event', return_value=result):
+                callback(message_with(event_body()))
+        callback(message_with(b'{not json'))
+        with patch('app.record_event', side_effect=RuntimeError('down')):
+            callback(message_with(event_body()))
+
+        for result, was in before.items():
+            self.assertEqual(self.count(result) - was, 1, result)
+
+    def test_the_delay_from_serve_to_count_is_recorded_for_counted_events_only(self):
+        callback = app.make_callback(Mock(), Mock(), Mock(), 'click')
+        before = self.delays()
+        with patch('app.record_event', return_value='counted'):
+            callback(message_with(event_body(served_at=datetime.now(timezone.utc) - timedelta(seconds=3))))
+        with patch('app.record_event', return_value='duplicate'):
+            callback(message_with(event_body()))
+        self.assertEqual(self.delays() - before, 1)
+
+
 class MongoTestCase(unittest.TestCase):
     """A fresh database on a real MongoDB replica set, because the guarantee lives in its transactions."""
 

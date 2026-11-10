@@ -371,6 +371,23 @@ func TestAdserve_ManagerDownIsA502(t *testing.T) {
 	}
 }
 
+func TestAdserve_AManagerFailureIsABadGatewayNotAMissingPublisher(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	server := newTestServer(t, store, failing.URL)
+
+	if code := serve(t, server, validQuery, slotRequest()).Code; code != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502 when the manager fails", code)
+	}
+	if server.known.has("/publisher/publisherid/P1") {
+		t.Error("a failed check was remembered as a known publisher")
+	}
+}
+
 func TestAdserve_SlowManagerTimesOut(t *testing.T) {
 	release := make(chan struct{})
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

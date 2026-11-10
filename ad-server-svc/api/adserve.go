@@ -181,6 +181,14 @@ func (server *Server) entityExists(ctx *gin.Context, path, label string) bool {
 		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
 		return false
 	}
+	if resp.StatusCode >= 500 {
+		// The manager failed, so nobody knows whether the publisher exists. The load
+		// test found this answered as "not found" while the manager's database dropped
+		// connections.
+		log.Printf("the ad manager answered %d while checking the %s", resp.StatusCode, label)
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "could not check the " + label})
+		return false
+	}
 	if resp.StatusCode != http.StatusOK {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": label + " not found"})
 		return false

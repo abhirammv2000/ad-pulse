@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // adManagerTimeout is how long one publisher or ad unit lookup may take. Every
@@ -63,7 +64,8 @@ func (server *Server) setupRouter() {
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(config))
 	router.GET("/", server.healthCheck)
-	router.POST("/adserve", server.adserve)
+	router.POST("/adserve", measured(server.adserve))
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	server.router = router
 }

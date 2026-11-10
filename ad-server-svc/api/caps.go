@@ -94,12 +94,16 @@ func (server *Server) withinCaps(ctx context.Context, ads []cache.Ad, campaigns 
 	var queries []cache.CountQuery
 	position := map[cache.CountQuery]int{}
 	checks := make([][]check, len(ads))
-	blocked := make([]bool, len(ads))
+	blocked := make([]string, len(ads)) // why an ad can't be checked at all, or ""
 
 	for i, ad := range ads {
 		for _, c := range capsOf(ad, campaigns) {
-			if userID == "" || !usable(c) {
-				blocked[i] = true
+			if userID == "" {
+				blocked[i] = "no_user_id"
+				break
+			}
+			if !usable(c) {
+				blocked[i] = "unusable_cap"
 				break
 			}
 			since := now - windowSeconds[c.TimeFrame.TimeWindowType]*int64(c.TimeFrame.Value)
@@ -128,7 +132,8 @@ func (server *Server) withinCaps(ctx context.Context, ads []cache.Ad, campaigns 
 
 	kept := make([]cache.Ad, 0, len(ads))
 	for i, ad := range ads {
-		if blocked[i] {
+		if blocked[i] != "" {
+			adsSkipped.WithLabelValues(blocked[i]).Inc()
 			continue
 		}
 		capped := false
@@ -138,9 +143,11 @@ func (server *Server) withinCaps(ctx context.Context, ads []cache.Ad, campaigns 
 				break
 			}
 		}
-		if !capped {
-			kept = append(kept, ad)
+		if capped {
+			adsSkipped.WithLabelValues("frequency_cap").Inc()
+			continue
 		}
+		kept = append(kept, ad)
 	}
 	return kept, nil
 }

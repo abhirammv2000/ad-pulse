@@ -25,6 +25,7 @@ from threading import Event
 
 import redis
 from google.cloud import pubsub_v1
+from prometheus_client import Counter, Histogram, start_http_server
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import CollectionInvalid
 
@@ -40,6 +41,20 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_USERNAME = os.getenv("REDIS_USERNAME") or None
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
+METRICS_PORT = int(os.getenv("METRICS_PORT", "9102"))
+
+# Prometheus metrics, served on METRICS_PORT. Both labels have fixed values.
+EVENTS = Counter(
+    "subscriber_events_total",
+    "Click and render messages by event and result: counted, duplicate, too_old, malformed or failed.",
+    ["event", "result"],
+)
+# How far behind the counts are. Budgets and caps overshoot by what is in flight for this long.
+SERVE_TO_COUNT = Histogram(
+    "subscriber_serve_to_count_seconds",
+    "Seconds from serving an ad to counting its click or render.",
+    buckets=(0.5, 1, 2, 5, 10, 30, 60, 300, 1800, 3600, 86400),
+)
 
 # Both event types share one row per ad, so a new row needs a zero for the
 # counter that did not fire.
@@ -304,17 +319,23 @@ def make_callback(client, database, redis_client, event_type):
         except BadEvent as exc:
             # It will never succeed, so ack it to stop the redeliveries.
             log.error("dropping unusable %s message: %s", event_type, exc)
+            EVENTS.labels(event_type, "malformed").inc()
             message.ack()
             return
 
+        now = datetime.now(timezone.utc)
         try:
-            result = record_event(client, database, redis_client, event_type, event, datetime.now(timezone.utc))
+            result = record_event(client, database, redis_client, event_type, event, now)
         except Exception:
             # Anything else (MongoDB or Redis down, a transaction that kept failing) is worth retrying.
             log.exception("failed to record %s message", event_type)
+            EVENTS.labels(event_type, "failed").inc()
             message.nack()
             return
 
+        EVENTS.labels(event_type, result).inc()
+        if result == "counted":
+            SERVE_TO_COUNT.observe((now - event.served_at).total_seconds())
         if result == "too_old":
             log.warning(
                 "not counting %s for ad %s: it was served at %s, too long ago", event_type, event.ad_id, event.served_at
@@ -342,6 +363,9 @@ def main():
         host=REDIS_HOST, port=REDIS_PORT, username=REDIS_USERNAME, password=REDIS_PASSWORD, decode_responses=True
     )
     redis_client.ping()
+
+    # This is a queue consumer with no HTTP server of its own, so the metrics get one.
+    start_http_server(METRICS_PORT)
 
     # Credentials come from Application Default Credentials; set
     # GOOGLE_APPLICATION_CREDENTIALS to a key file for local development.

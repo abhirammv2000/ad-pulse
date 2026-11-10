@@ -82,6 +82,7 @@ Use three in production. Managed MongoDB (Atlas) is always a replica set.
 | `MONGODB_DATABASE` | `ad_pulse` | Mongo database name |
 | `REDIS_HOST` | `localhost` | Redis the ad server reads spend from |
 | `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD` | `6379`, none, none | Redis connection |
+| `METRICS_PORT` | `9102` | Port of the Prometheus `/metrics` endpoint: `subscriber_events_total{event, result}` (counted, duplicate, too_old, malformed, failed) and `subscriber_serve_to_count_seconds`, how long after serving an event was counted |
 
 ## Running
 
