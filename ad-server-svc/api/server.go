@@ -35,7 +35,7 @@ type Server struct {
 	known      *knownEntities
 
 	// Decoded campaigns and ads, kept by their JSON text. See contentCache.
-	campaignsDecoded *contentCache[[]cache.Campaign]
+	campaignsDecoded *contentCache[cache.CampaignList]
 	adsDecoded       *contentCache[cache.Ad]
 }
 
@@ -46,7 +46,7 @@ func NewServer(config util.Config, store cache.Store) (*Server, error) {
 		httpClient: &http.Client{Timeout: adManagerTimeout},
 		known:      newKnownEntities(),
 
-		campaignsDecoded: newContentCache[[]cache.Campaign](decodedCampaignListLimit),
+		campaignsDecoded: newContentCache[cache.CampaignList](decodedCampaignListLimit),
 		adsDecoded:       newContentCache[cache.Ad](decodedAdLimit),
 	}
 

@@ -381,6 +381,35 @@ func TestAdserve_SkipsAMalformedAdAndServesTheRest(t *testing.T) {
 	}
 }
 
+func TestAdserve_SkipsAMalformedCampaignAndServesTheRest(t *testing.T) {
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	// A budget written as a string cannot be read, and neither can a campaign that is not an object.
+	good := strings.TrimSuffix(strings.TrimPrefix(store.values["campaigns"], "["), "]")
+	store.values["campaigns"] = `[{"campaignid":"BAD","budget":{"dailyBudget":"10"}},"oops",` + good + `]`
+	server := newTestServer(t, store, adManager(t).URL)
+
+	recorder := serve(t, server, validQuery, slotRequest())
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: one bad campaign must not stop the others", recorder.Code)
+	}
+	if bids := decodeResponse(t, recorder).Bid; len(bids) != 1 || bids[0].AdID != "AD1" {
+		t.Errorf("unexpected bids: %+v", bids)
+	}
+}
+
+func TestAdserve_ACampaignListThatIsNotJSONIsA500(t *testing.T) {
+	store := newFakeStore()
+	seedCampaign(t, store, liveAd("AD1", 1))
+	store.values["campaigns"] = "{not json"
+	server := newTestServer(t, store, adManager(t).URL)
+
+	if code := serve(t, server, validQuery, slotRequest()).Code; code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", code)
+	}
+}
+
 func TestAdserve_LowerPriorityNumberWinsTheSlot(t *testing.T) {
 	store := newFakeStore()
 	seedCampaign(t, store, liveAd("LATE", 9), liveAd("FIRST", 1), liveAd("MIDDLE", 5))

@@ -41,6 +41,11 @@ func TestGetTime(t *testing.T) {
 	if _, err := GetTime("not-a-date"); err == nil {
 		t.Error("expected an error parsing a non-date string, got nil")
 	}
+	// The manager writes dates with Python's isoformat(), which adds microseconds when a date has them.
+	got, err := GetTime("2026-09-17T13:00:00.250000")
+	if err != nil || got.Nanosecond() != 250_000_000 {
+		t.Errorf("a date with microseconds: got %v, %v", got, err)
+	}
 }
 
 func TestAdActive(t *testing.T) {

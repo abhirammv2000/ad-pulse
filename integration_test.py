@@ -157,12 +157,13 @@ class TestAPI(unittest.TestCase):
             "createdby": "integration-test",
             "creativeid": creative_id,
             "enddate": FLIGHT_END,
+            # At most 3 renders of this ad a day for one user.
             "frequencycaps": {
                 "frequencyCapList": [
                     {
-                        "entityType": "CAMPAIGN",
+                        "entityType": "AD",
                         "eventType": "CSC",
-                        "timeFrame": {"maxCount": 0, "timeWindowType": "HOUR", "value": 0},
+                        "timeFrame": {"maxCount": 3, "timeWindowType": "DAY", "value": 1},
                         "userCap": True,
                     }
                 ]

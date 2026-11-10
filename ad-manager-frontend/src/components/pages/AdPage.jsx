@@ -15,8 +15,9 @@ import TableRow from '@mui/material/TableRow';
 import TableCell from '@mui/material/TableCell';
 import styled from '@emotion/styled';
 import { useParams } from 'react-router-dom';
-import {FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import {Alert, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import { API_BASE_URL } from '../../config';
+import { buildAdPayload } from '../../requests/adPayload';
 
 
 
@@ -43,17 +44,19 @@ const AdPage = () => {
   const [adPriority, setAdPriority] = useState('');
   const [timeTargetting, setTimeTargetting] = useState([]);
   const [dayTargetting, setDayTargetting] = useState([]);
-  const [adUnitTargetting, setAdUnitTargetting] = useState([]);
+  const [adUnitTargetting, setAdUnitTargetting] = useState('');
   const [creativeid, setCreativeId] = useState('');
   const [adUnits, setAdUnits] = useState([]);
   const [creativeList, setCreativeList] = useState([]);
-  const [bid, setBid] = useState(0);
+  const [bid, setBid] = useState('');
 
 
   const [open, setOpen] = useState(false);
   const [ads, setAds] = useState([]);
+  const [saveError, setSaveError] = useState('');
 
   const handleClickOpen = () => {
+    setSaveError('');
     setOpen(true);
   };
 
@@ -63,47 +66,29 @@ const AdPage = () => {
 
 
   const handleSave = () => {
-    const data = {
-        ad_unit_targeted: [adUnitTargetting],
-        adname: adName,
-        adpriority: adPriority,
-        adtype: adType,
-        campaignid: CampId,
-        advertiserid: AdvId,
-       creativeid: creativeid,
-        startdate: startDate,
-        enddate: endDate,
-        adstate: "ACTIVE",
-        landingurl: landingUrl,
-        budget:{
-            totalbudget: totalBudget,
-            dailybudget: dailyBudget,
-            currencycode: "USD",
-        },
-        bidinfo:{
-            bidtype: bidType,
-            bid: bid,
-        }
-      }
-
-      if (timeTargetting.length > 0 || dayTargetting.length > 0) {
-        data.targetinginfo = {};
-    
-        if (timeTargetting.length > 0) {
-            data.targetinginfo.timetargeting = {
-                type: "equal",
-                values: timeTargetting,
-            };
-        }
-    
-        if (dayTargetting.length > 0) {
-            data.targetinginfo.daytargeting = {
-                type: "equal",
-                values: dayTargetting,
-            };
-        }
+    // An ad with no flight dates is stored but can never serve, so ask for them here.
+    if (!startDate || !endDate) {
+      setSaveError('Start and end dates are required.');
+      return;
     }
-    
+
+    const data = buildAdPayload({
+      adName,
+      adPriority,
+      adType,
+      creativeId: creativeid,
+      startDate,
+      endDate,
+      landingUrl,
+      adUnit: adUnitTargetting,
+      bidType,
+      bid,
+      dailyBudget,
+      totalBudget,
+      hours: timeTargetting,
+      days: dayTargetting,
+    }, CampId, AdvId);
+
     axios.post(`${baseUrl}/ad`, data)
       .then(() => {
         setAdName('');
@@ -113,18 +98,20 @@ const AdPage = () => {
         setTotalBudget('');
         setDailyBudget('');
         setBidType('');
-        setBid(0);
+        setBid('');
         setAdType('');
         setAdPriority('');
         setTimeTargetting([]);
         setDayTargetting([]);
-        setAdUnitTargetting([]);
+        setAdUnitTargetting('');
         setCreativeId('');
         fetchAds();
         handleClose();
       })
       .catch(error => {
         console.error('Error sending data:', error);
+        // The manager says which field is wrong, so show its message.
+        setSaveError(error.response?.data?.error || 'The ad could not be saved.');
       });
   };
 
@@ -175,7 +162,8 @@ const AdPage = () => {
       });
   };
 
-  const timeOptions = Array.from({ length: 24 }, (_, index) => index + 1);
+  // The ad server compares these with the hour in UTC, which runs from 0 to 23.
+  const timeOptions = Array.from({ length: 24 }, (_, index) => index);
   const dayOptions = Array.from({ length: 7 }, (_, index) => index + 1);
 
   return (
@@ -221,6 +209,7 @@ const AdPage = () => {
           <DialogContentText>
             Please fill in the details of the new ad.
           </DialogContentText>
+          {saveError && <Alert severity="error" style={{ marginTop: 10 }}>{saveError}</Alert>}
           {/* <TextField
               margin="dense"
               label="Ad Unit Targeted"
@@ -259,6 +248,7 @@ const AdPage = () => {
             <TextField
                 margin="dense"
                 label="Ad priority"
+                type="number"
                 fullWidth
                 value={adPriority}
                 onChange={(e) => setAdPriority(e.target.value)}
@@ -287,26 +277,28 @@ const AdPage = () => {
                 >
                     <MenuItem value="CPM">CPM</MenuItem>
                     <MenuItem value="CPC">CPC</MenuItem>
-                    <MenuItem value="CPD">CPD</MenuItem>
                 </Select>
             </FormControl>
             <TextField
                 margin="dense"
-                label="Bid"
+                label="Bid (USD)"
+                type="number"
                 fullWidth
                 value={bid}
                 onChange={(e) => setBid(e.target.value)}
             />
             <TextField
                 margin="dense"
-                label="Total Budget"
+                label="Total Budget (USD)"
+                type="number"
                 fullWidth
                 value={totalBudget}
                 onChange={(e) => setTotalBudget(e.target.value)}
             />
             <TextField
                 margin="dense"
-                label="Daily Budget"
+                label="Daily Budget (USD)"
+                type="number"
                 fullWidth
                 value={dailyBudget}
                 onChange={(e) => setDailyBudget(e.target.value)}
@@ -351,7 +343,7 @@ const AdPage = () => {
                 </Select>
             </FormControl>
             <FormControl fullWidth>
-                <InputLabel id="time-targeting-label">Time Targeting</InputLabel>
+                <InputLabel id="time-targeting-label">Hours (UTC)</InputLabel>
                 <Select
                 labelId="time-targeting-label"
                 id="time-targeting-select"

@@ -10,6 +10,7 @@ from app.services.ad_service import (
     update_ad,
     update_ad_state,
 )
+from app.validation import validate_ad
 
 ad_blueprint = Blueprint('ad', __name__)
 
@@ -24,6 +25,7 @@ def create_ad_api():
     json_data = json_body()
     if json_data is None:
         return invalid_body_response()
+    validate_ad(json_data)
     return jsonify({'message': 'Ad created successfully', 'ad': create_ad(json_data)}), 201
 
 
@@ -50,6 +52,7 @@ def update_ad_api():
     json_data = json_body()
     if json_data is None:
         return invalid_body_response()
+    validate_ad(json_data)
     updated_ad = update_ad(json_data)
     if updated_ad:
         return jsonify({'message': 'Ad updated successfully', 'ad': updated_ad}), 200

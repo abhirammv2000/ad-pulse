@@ -94,9 +94,9 @@ const CampaignsPage = () => {
           </TableHead>
           <TableBody>
             {campaigns.map((campaign) => (
-              <TableRow key={campaign.id}>
-                <TableCell>{campaign.id}</TableCell>
-                <TableCell>{campaign.name}</TableCell>
+              <TableRow key={campaign.campaignid}>
+                <TableCell>{campaign.campaignid}</TableCell>
+                <TableCell>{campaign.campaignname}</TableCell>
                 {/* Add more campaign fields as needed */}
               </TableRow>
             ))}

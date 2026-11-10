@@ -42,8 +42,8 @@ type Campaign struct {
 	CampaignName string `json:"campaignname"`
 	StartDate    string `json:"startdate"`
 	Budget       struct {
-		DailyBudget  int    `json:"dailyBudget"`
-		TotalBudget  int    `json:"totalBudget"`
+		DailyBudget  Money  `json:"dailyBudget"`
+		TotalBudget  Money  `json:"totalBudget"`
 		CurrencyCode string `json:"currencyCode"`
 	} `json:"budget"`
 	CreatedAt     string `json:"createdat"`
@@ -91,13 +91,13 @@ type Ad struct {
 	AdType         string   `json:"adtype"`
 	AdvertiserID   string   `json:"advertiserid"`
 	BidInfo        struct {
-		Bid     int    `json:"bid"`
+		Bid     Money  `json:"bid"`
 		BidType string `json:"bidType"`
 	} `json:"bidinfo"`
 	Budget struct {
 		CurrencyCode string `json:"currencyCode"`
-		DailyBudget  int    `json:"dailyBudget"`
-		TotalBudget  int    `json:"totalBudget"`
+		DailyBudget  Money  `json:"dailyBudget"`
+		TotalBudget  Money  `json:"totalBudget"`
 	} `json:"budget"`
 	CampaignID    string `json:"campaignid"`
 	CreatedAt     string `json:"createdat"`

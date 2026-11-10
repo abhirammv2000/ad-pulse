@@ -10,6 +10,7 @@ from app.services.campaign_service import (
     update_campaign,
     update_campaign_state,
 )
+from app.validation import validate_campaign
 
 campaign_blueprint = Blueprint('campaign', __name__)
 
@@ -37,6 +38,7 @@ def create_campaign_api():
     json_data = json_body()
     if json_data is None:
         return invalid_body_response()
+    validate_campaign(json_data)
     return jsonify({'message': 'Campaign created', 'campaign': create_campaign(json_data)}), 201
 
 
@@ -45,6 +47,7 @@ def update_campaign_api():
     json_data = json_body()
     if json_data is None:
         return invalid_body_response()
+    validate_campaign(json_data)
     updated_campaign = update_campaign(json_data)
     if updated_campaign is None:
         return jsonify({'error': 'Campaign not found'}), 404
