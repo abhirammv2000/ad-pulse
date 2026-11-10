@@ -12,12 +12,18 @@ refresh records the exact keys it wrote in an index set and clears those.
 """
 
 import json
+import logging
+
+from pymongo.errors import PyMongoError
 
 from app.models.ad import Ad
 from app.models.campaign import Campaign
 from app.models.creative import Creative
+from app.services.reporting_service import engagement_counts
 from config.db import session_scope
 from config.redis import get_redis_client
+
+log = logging.getLogger(__name__)
 
 CAMPAIGNS_KEY = "campaigns"
 AD_KEYS_INDEX = "index:ad_campaign_keys"
@@ -50,13 +56,38 @@ def fetch_and_cache_active_campaigns():
     get_redis_client().set(CAMPAIGNS_KEY, payload)
 
 
+def add_engagement_stats(rows):
+    """Give each CPC ad its clicks and renders so far, for the ad server's ranking.
+
+    A CPC ad competes on its expected click-through rate, so it needs its counts. They
+    change all the time, but the cache is rebuilt every few seconds, which is fresh
+    enough for a rate. If MongoDB can't be reached the ads are cached without them,
+    and the ad server ranks those ads on its prior rate until the next refresh.
+    """
+    cpc_ids = [
+        row['adid'] for row in rows
+        if isinstance(row.get('bidinfo'), dict) and row['bidinfo'].get('bidType') == 'CPC'
+    ]
+    try:
+        counts = engagement_counts(cpc_ids)
+    except (PyMongoError, RuntimeError) as exc:
+        log.warning("caching ads without click and render counts: %s", exc)
+        return
+    for row in rows:
+        report = counts.get(row['adid'])
+        if report:
+            row['stats'] = {'clicks': report.get('click', 0), 'renders': report.get('render', 0)}
+
+
 def fetch_and_cache_active_ads():
     with session_scope() as session:
-        ads = session.query(Ad).filter(Ad.adstate == 'ACTIVE').all()
-        # One hash per campaign, keyed by ad id.
-        by_campaign = {}
-        for ad in ads:
-            by_campaign.setdefault(ad.campaignid, {})[ad.adid] = json.dumps(ad.to_dict())
+        rows = [ad.to_dict() for ad in session.query(Ad).filter(Ad.adstate == 'ACTIVE').all()]
+    add_engagement_stats(rows)
+
+    # One hash per campaign, keyed by ad id.
+    by_campaign = {}
+    for row in rows:
+        by_campaign.setdefault(row['campaignid'], {})[row['adid']] = json.dumps(row)
 
     def write(pipe):
         for campaign_id, ads_json in by_campaign.items():

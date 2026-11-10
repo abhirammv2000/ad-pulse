@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -83,7 +84,7 @@ func usable(c cache.FrequencyCap) bool {
 // withinCaps returns the ads this user has not reached a cap on. An ad with a cap
 // can't be checked without a user id, so it is left out, and so is an ad with a
 // cap the server can't apply. Ads with no caps cost no read.
-func (server *Server) withinCaps(ads []cache.Ad, campaigns map[string]cache.Campaign, userID string) ([]cache.Ad, error) {
+func (server *Server) withinCaps(ctx context.Context, ads []cache.Ad, campaigns map[string]cache.Campaign, userID string) ([]cache.Ad, error) {
 	now := server.now().Unix()
 
 	type check struct {
@@ -116,7 +117,7 @@ func (server *Server) withinCaps(ads []cache.Ad, campaigns map[string]cache.Camp
 	var counts []int64
 	if len(queries) > 0 {
 		var err error
-		counts, err = server.store.CountSince(queries)
+		counts, err = server.store.CountSince(ctx, queries)
 		if err != nil {
 			return nil, err
 		}

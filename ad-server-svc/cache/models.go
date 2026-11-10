@@ -120,6 +120,15 @@ type Ad struct {
 	TargetingInfo *TargetingInfo `json:"targetinginfo"`
 	UpdatedAt     string         `json:"updatedat"`
 	UpdatedBy     string         `json:"updatedby"`
+
+	// The ad's clicks and renders so far. ad-manager-svc's cache job adds them to CPC
+	// ads, whose ranking needs a click-through rate. Other ads have none.
+	Stats struct {
+		Clicks  int64 `json:"clicks"`
+		Renders int64 `json:"renders"`
+	} `json:"stats"`
+
+	flight *flight // StartDate and EndDate, parsed once when decoded. See flight.go
 }
 
 type Ext struct {
@@ -194,7 +203,6 @@ type AdServeResponse struct {
 }
 
 type BidParams struct {
-	RankedAds   *[]Ad               `json:"ranked_ads"`
 	RequestBody RequestBody         `json:"request_body"`
 	AdUnitId    string              `json:"adunit_id"`
 	UserID      string              `json:"user_id"`

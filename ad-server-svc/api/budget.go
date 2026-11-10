@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -99,7 +100,7 @@ type budgeted struct {
 // withinBudget returns the ads that may still spend. It reads the spend of every
 // budgeted ad and campaign in one round trip, and decides each of them once, so
 // a campaign shared by many ads is checked once.
-func (server *Server) withinBudget(ads []cache.Ad, campaigns map[string]cache.Campaign) ([]cache.Ad, error) {
+func (server *Server) withinBudget(ctx context.Context, ads []cache.Ad, campaigns map[string]cache.Campaign) ([]cache.Ad, error) {
 	now := server.now().UTC()
 	date := now.Format("2006-01-02")
 	sinceMidnight := now.Sub(now.Truncate(day))
@@ -130,7 +131,7 @@ func (server *Server) withinBudget(ads []cache.Ad, campaigns map[string]cache.Ca
 		return ads, nil
 	}
 
-	values, err := server.store.MGet(keys)
+	values, err := server.store.MGet(ctx, keys)
 	if err != nil {
 		return nil, err
 	}

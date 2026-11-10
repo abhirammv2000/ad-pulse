@@ -8,7 +8,7 @@ import (
 )
 
 func fmtTime(t time.Time) string {
-	return t.UTC().Format(timeLayout)
+	return t.UTC().Format(cache.DateLayout)
 }
 
 func TestWithinDuration(t *testing.T) {
@@ -36,7 +36,7 @@ func TestWithinDuration(t *testing.T) {
 
 func TestGetTime(t *testing.T) {
 	if _, err := GetTime("2026-09-17T13:00:00"); err != nil {
-		t.Errorf("expected a valid timeLayout string to parse, got error: %v", err)
+		t.Errorf("expected a date in the manager's layout to parse, got error: %v", err)
 	}
 	if _, err := GetTime("not-a-date"); err == nil {
 		t.Error("expected an error parsing a non-date string, got nil")
@@ -110,20 +110,5 @@ func TestIsAdAvailable_ExpiredAdIsNeverAvailable(t *testing.T) {
 	}
 	if IsAdAvailable(expired, cache.RequestParams{AdUnitId: "ADU1"}) {
 		t.Error("expected an expired ad to be unavailable regardless of targeting")
-	}
-}
-
-func TestRankAds(t *testing.T) {
-	ads := []cache.Ad{
-		{AdID: "low-priority-number-wins", AdPriority: 5},
-		{AdID: "highest-priority-number", AdPriority: 9},
-		{AdID: "middle", AdPriority: 7},
-	}
-
-	ranked := RankAds(ads)
-
-	if ranked[0].AdID != "low-priority-number-wins" || ranked[1].AdID != "middle" || ranked[2].AdID != "highest-priority-number" {
-		t.Errorf("expected ads ranked by ascending AdPriority (lowest number first), got order: %s, %s, %s",
-			ranked[0].AdID, ranked[1].AdID, ranked[2].AdID)
 	}
 }

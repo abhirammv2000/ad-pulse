@@ -3,6 +3,7 @@ package api
 import (
 	"adserver/cache"
 	"adserver/util"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -21,7 +22,7 @@ const imageAssetType = 3
 // Each creative is read from the cache once per request, and the walk stops as
 // soon as every impression has a bid: a later ad could not match anything, so
 // reading its creative would only cost a round trip.
-func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
+func (server *Server) getBids(ctx context.Context, candidates *ranking, bidParams cache.BidParams) (*[]cache.Bid, error) {
 	var bids []cache.Bid
 	impIDTaken := make(map[string]bool)
 	// The same clock as the cap windows: a cap counts events by this time.
@@ -29,14 +30,15 @@ func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
 	wanted := distinctImpressionIDs(bidParams.RequestBody.Imp)
 	creatives := make(map[string]creativeLookup)
 
-	for _, ad := range *bidParams.RankedAds {
-		if len(impIDTaken) >= wanted {
+	for len(impIDTaken) < wanted {
+		ad, ok := candidates.next()
+		if !ok {
 			break
 		}
 
 		lookup, seen := creatives[ad.CreativeID]
 		if !seen {
-			lookup.creative, lookup.err = server.store.GetCreatives(ad.CreativeID)
+			lookup.creative, lookup.err = server.store.GetCreatives(ctx, ad.CreativeID)
 			creatives[ad.CreativeID] = lookup
 		}
 		if lookup.err != nil {

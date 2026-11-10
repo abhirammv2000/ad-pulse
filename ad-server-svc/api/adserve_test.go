@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -51,7 +52,7 @@ func (f *fakeStore) addEvent(key, member string, score int64) {
 	f.sets[key][member] = score
 }
 
-func (f *fakeStore) CountSince(queries []cache.CountQuery) ([]int64, error) {
+func (f *fakeStore) CountSince(_ context.Context, queries []cache.CountQuery) ([]int64, error) {
 	f.countCalls++
 	if f.countErr != nil {
 		return nil, f.countErr
@@ -67,7 +68,7 @@ func (f *fakeStore) CountSince(queries []cache.CountQuery) ([]int64, error) {
 	return counts, nil
 }
 
-func (f *fakeStore) Get(key string) (string, error) {
+func (f *fakeStore) Get(_ context.Context, key string) (string, error) {
 	if f.getErr != nil {
 		return "", f.getErr
 	}
@@ -78,16 +79,16 @@ func (f *fakeStore) Get(key string) (string, error) {
 	return value, nil
 }
 
-func (f *fakeStore) Set(key, value string) error {
+func (f *fakeStore) Set(_ context.Context, key, value string) error {
 	f.values[key] = value
 	return nil
 }
 
-func (f *fakeStore) HGetAll(key string) (map[string]string, error) {
+func (f *fakeStore) HGetAll(_ context.Context, key string) (map[string]string, error) {
 	return f.hashes[key], nil
 }
 
-func (f *fakeStore) MGet(keys []string) ([]string, error) {
+func (f *fakeStore) MGet(_ context.Context, keys []string) ([]string, error) {
 	f.mgetCalls++
 	if f.mgetErr != nil {
 		return nil, f.mgetErr
@@ -99,8 +100,8 @@ func (f *fakeStore) MGet(keys []string) ([]string, error) {
 	return out, nil
 }
 
-func (f *fakeStore) GetCreatives(creativeID string) (*cache.Creative, error) {
-	raw, err := f.Get(creativeID)
+func (f *fakeStore) GetCreatives(ctx context.Context, creativeID string) (*cache.Creative, error) {
+	raw, err := f.Get(ctx, creativeID)
 	if err != nil {
 		return nil, err
 	}

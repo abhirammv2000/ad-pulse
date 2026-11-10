@@ -107,5 +107,47 @@ class CacheKeyCollisionTest(unittest.TestCase):
         self.assertEqual(redis.smembers('index:ad_campaign_keys'), set())
 
 
+class EngagementStatsTest(unittest.TestCase):
+    """CPC ads are cached with their clicks and renders, for the ad server's ranking."""
+
+    def rows(self):
+        return [
+            {'adid': 'CPC1', 'bidinfo': {'bid': 1, 'bidType': 'CPC'}},
+            {'adid': 'CPC_NEW', 'bidinfo': {'bid': 1, 'bidType': 'CPC'}},
+            {'adid': 'CPM1', 'bidinfo': {'bid': 1, 'bidType': 'CPM'}},
+            {'adid': 'NO_BID', 'bidinfo': None},
+        ]
+
+    def test_only_cpc_ads_are_looked_up_and_given_their_counts(self):
+        from unittest.mock import patch
+
+        from app.cache import cache_job
+
+        rows = self.rows()
+        reports = {'CPC1': {'_id': 'CPC1', 'click': 3, 'render': 200}}
+        with patch.object(cache_job, 'engagement_counts', return_value=reports) as counts:
+            cache_job.add_engagement_stats(rows)
+
+        counts.assert_called_once_with(['CPC1', 'CPC_NEW'])
+        self.assertEqual(rows[0]['stats'], {'clicks': 3, 'renders': 200})
+        # An ad with no report yet gets no stats, and the ad server uses its prior rate.
+        self.assertNotIn('stats', rows[1])
+        self.assertNotIn('stats', rows[2])
+        self.assertNotIn('stats', rows[3])
+
+    def test_without_mongodb_the_ads_are_cached_without_counts(self):
+        from unittest.mock import patch
+
+        from pymongo.errors import ServerSelectionTimeoutError
+
+        from app.cache import cache_job
+
+        rows = self.rows()
+        with patch.object(cache_job, 'engagement_counts', side_effect=ServerSelectionTimeoutError('down')):
+            cache_job.add_engagement_stats(rows)
+
+        self.assertFalse(any('stats' in row for row in rows))
+
+
 if __name__ == '__main__':
     unittest.main()

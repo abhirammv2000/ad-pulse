@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,23 +48,29 @@ func (l latencyStore) wait() {
 	}
 }
 
-func (l latencyStore) Get(key string) (string, error) { l.wait(); return l.Store.Get(key) }
-func (l latencyStore) Set(key, value string) error    { l.wait(); return l.Store.Set(key, value) }
-func (l latencyStore) HGetAll(key string) (map[string]string, error) {
+func (l latencyStore) Get(ctx context.Context, key string) (string, error) {
 	l.wait()
-	return l.Store.HGetAll(key)
+	return l.Store.Get(ctx, key)
 }
-func (l latencyStore) GetCreatives(id string) (*cache.Creative, error) {
+func (l latencyStore) Set(ctx context.Context, key, value string) error {
 	l.wait()
-	return l.Store.GetCreatives(id)
+	return l.Store.Set(ctx, key, value)
 }
-func (l latencyStore) MGet(keys []string) ([]string, error) {
+func (l latencyStore) HGetAll(ctx context.Context, key string) (map[string]string, error) {
 	l.wait()
-	return l.Store.MGet(keys)
+	return l.Store.HGetAll(ctx, key)
 }
-func (l latencyStore) CountSince(queries []cache.CountQuery) ([]int64, error) {
+func (l latencyStore) GetCreatives(ctx context.Context, id string) (*cache.Creative, error) {
 	l.wait()
-	return l.Store.CountSince(queries)
+	return l.Store.GetCreatives(ctx, id)
+}
+func (l latencyStore) MGet(ctx context.Context, keys []string) ([]string, error) {
+	l.wait()
+	return l.Store.MGet(ctx, keys)
+}
+func (l latencyStore) CountSince(ctx context.Context, queries []cache.CountQuery) ([]int64, error) {
+	l.wait()
+	return l.Store.CountSince(ctx, queries)
 }
 
 // benchWorld builds a cache with the given number of live campaigns, each holding adsPerCampaign ads that all use the

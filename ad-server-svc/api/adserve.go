@@ -3,6 +3,7 @@ package api
 import (
 	"adserver/cache"
 	"adserver/util"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -37,7 +38,16 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
-	campaigns, err := server.store.Get("campaigns")
+	// Every Redis call of this request shares one deadline, so a slow Redis can't
+	// hold a request for long. Past it the request fails and nothing is served.
+	rctx := ctx.Request.Context()
+	if server.config.RedisTimeout > 0 {
+		var cancel context.CancelFunc
+		rctx, cancel = context.WithTimeout(rctx, server.config.RedisTimeout)
+		defer cancel()
+	}
+
+	campaigns, err := server.store.Get(rctx, "campaigns")
 	if errors.Is(err, cache.ErrNotFound) {
 		// The cache has not been filled yet, so there is nothing to serve.
 		campaigns = "[]"
@@ -73,7 +83,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 		}
 		liveCampaigns[campaign.CampaignID] = campaign
 
-		ads, err := server.store.HGetAll(campaign.CampaignID)
+		ads, err := server.store.HGetAll(rctx, campaign.CampaignID)
 		if err != nil {
 			internalError(ctx, err)
 			return
@@ -91,14 +101,14 @@ func (server *Server) adserve(ctx *gin.Context) {
 		}
 	}
 
-	activeAds, err = server.withinBudget(activeAds, liveCampaigns)
+	activeAds, err = server.withinBudget(rctx, activeAds, liveCampaigns)
 	if err != nil {
 		internalError(ctx, err)
 		return
 	}
 
 	userID := userOf(reqBody)
-	activeAds, err = server.withinCaps(activeAds, liveCampaigns, userID)
+	activeAds, err = server.withinCaps(rctx, activeAds, liveCampaigns, userID)
 	if err != nil {
 		internalError(ctx, err)
 		return
@@ -120,9 +130,7 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
-	rankedAds := util.RankAds(activeAds)
-	bids, err := server.getBids(cache.BidParams{
-		RankedAds:   &rankedAds,
+	bids, err := server.getBids(rctx, newRanking(activeAds), cache.BidParams{
 		RequestBody: reqBody,
 		AdUnitId:    reqParams.AdUnitId,
 		UserID:      userID,

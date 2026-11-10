@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -13,9 +14,9 @@ type creativeCounter struct {
 	reads map[string]int
 }
 
-func (c *creativeCounter) GetCreatives(id string) (*cache.Creative, error) {
+func (c *creativeCounter) GetCreatives(ctx context.Context, id string) (*cache.Creative, error) {
 	c.reads[id]++
-	return c.fakeStore.GetCreatives(id)
+	return c.fakeStore.GetCreatives(ctx, id)
 }
 
 func newCreativeCounter() *creativeCounter {

@@ -2,7 +2,7 @@
 
 An ad-serving platform built from six small services. An ad manager lets you create publishers, advertisers, campaigns, ads and creatives. An ad server picks the best ad for a page slot. An engagement pipeline counts clicks and renders for each ad.
 
-**Status: working, and being extended** with the parts that involve money: exactly-once event counting, budgets and frequency caps are in, price ranking is next. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
+**Status: working.** The parts that involve money are in: exactly-once event counting, budgets with pacing, frequency caps, and ranking by price. It runs on a laptop with one command (see [Run it](#run-it)), and CI runs every test plus an end-to-end check of the whole stack and the dashboard in a real browser. Dependencies were updated and audited on 2026-10-13, so new advisories will have appeared since. The [known gaps](#known-gaps) below are limits I chose not to build.
 
 ```
 ad-manager-frontend -> ad-manager-svc -> Postgres

@@ -125,4 +125,6 @@ python -m coverage report
   what every entity shares: reading the JSON body and the `?state=` endpoints.
 - `app/enums/states.py`: the five states an entity can be in.
 - `app/cache/`: rebuilds the Redis projection of active campaigns/ads/creatives
-  that ad-server-svc serves from.
+  that ad-server-svc serves from. A CPC ad is cached with its clicks and renders from
+  MongoDB, as `stats`, for the ad server's ranking. If MongoDB is down the ads are
+  cached without them.

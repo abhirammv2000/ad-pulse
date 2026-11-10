@@ -14,16 +14,18 @@ import (
 // looks like before the first refresh.
 var ErrNotFound = errors.New("key not found in cache")
 
+// Store is the serving cache. Every call takes the request's context, so a slow
+// Redis can't hold a request past its deadline.
 type Store interface {
-	Get(key string) (string, error)
-	Set(key string, value string) error
-	HGetAll(key string) (map[string]string, error)
-	GetCreatives(creativeID string) (*Creative, error)
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value string) error
+	HGetAll(ctx context.Context, key string) (map[string]string, error)
+	GetCreatives(ctx context.Context, creativeID string) (*Creative, error)
 	// MGet reads many keys in one round trip. A missing key comes back as "".
-	MGet(keys []string) ([]string, error)
+	MGet(ctx context.Context, keys []string) ([]string, error)
 	// CountSince counts, for each query, the members of a sorted set scored above
 	// Since, all in one round trip. A missing set counts 0.
-	CountSince(queries []CountQuery) ([]int64, error)
+	CountSince(ctx context.Context, queries []CountQuery) ([]int64, error)
 }
 
 // CountQuery asks how many members of the sorted set at Key have a score greater than Since.
@@ -40,24 +42,24 @@ func NewRedisStore(rdb *redis.Client) Store {
 	return &RedisStore{rdb: rdb}
 }
 
-func (store *RedisStore) Get(key string) (string, error) {
-	value, err := store.rdb.Get(context.Background(), key).Result()
+func (store *RedisStore) Get(ctx context.Context, key string) (string, error) {
+	value, err := store.rdb.Get(ctx, key).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", ErrNotFound
 	}
 	return value, err
 }
 
-func (store *RedisStore) Set(key string, value string) error {
-	return store.rdb.Set(context.Background(), key, value, 0).Err()
+func (store *RedisStore) Set(ctx context.Context, key string, value string) error {
+	return store.rdb.Set(ctx, key, value, 0).Err()
 }
 
-func (store *RedisStore) HGetAll(key string) (map[string]string, error) {
-	return store.rdb.HGetAll(context.Background(), key).Result()
+func (store *RedisStore) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return store.rdb.HGetAll(ctx, key).Result()
 }
 
-func (store *RedisStore) MGet(keys []string) ([]string, error) {
-	values, err := store.rdb.MGet(context.Background(), keys...).Result()
+func (store *RedisStore) MGet(ctx context.Context, keys []string) ([]string, error) {
+	values, err := store.rdb.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +72,7 @@ func (store *RedisStore) MGet(keys []string) ([]string, error) {
 	return out, nil
 }
 
-func (store *RedisStore) CountSince(queries []CountQuery) ([]int64, error) {
-	ctx := context.Background()
+func (store *RedisStore) CountSince(ctx context.Context, queries []CountQuery) ([]int64, error) {
 	pipe := store.rdb.Pipeline()
 	commands := make([]*redis.IntCmd, len(queries))
 	for i, query := range queries {
@@ -88,8 +89,8 @@ func (store *RedisStore) CountSince(queries []CountQuery) ([]int64, error) {
 	return counts, nil
 }
 
-func (store *RedisStore) GetCreatives(creativeID string) (*Creative, error) {
-	creative, err := store.Get(creativeID)
+func (store *RedisStore) GetCreatives(ctx context.Context, creativeID string) (*Creative, error) {
+	creative, err := store.Get(ctx, creativeID)
 	if err != nil {
 		return nil, err
 	}
