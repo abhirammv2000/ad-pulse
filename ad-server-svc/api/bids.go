@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -25,7 +24,8 @@ const imageAssetType = 3
 func (server *Server) getBids(bidParams cache.BidParams) (*[]cache.Bid, error) {
 	var bids []cache.Bid
 	impIDTaken := make(map[string]bool)
-	requestTime := time.Now().Unix()
+	// The same clock as the cap windows: a cap counts events by this time.
+	requestTime := server.now().Unix()
 	wanted := distinctImpressionIDs(bidParams.RequestBody.Imp)
 	creatives := make(map[string]creativeLookup)
 
@@ -109,7 +109,7 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 	// URLs to attribute the event. Both URLs carry the same bid id, so one served
 	// bid can be counted for at most one click and one render.
 	bidID := uuid.New().String()
-	iid, err := json.Marshal(cache.IIDData{
+	identity := cache.IIDData{
 		BidID:            bidID,
 		BidType:          ad.BidInfo.BidType,
 		PriceNanos:       priceNanos(ad),
@@ -119,7 +119,12 @@ func (server *Server) buildBid(ad cache.Ad, asset cache.CreativeAsset, impID str
 		CampaignID:       ad.CampaignID,
 		AdvertiserID:     ad.AdvertiserID,
 		RequestTimeStamp: requestTime,
-	})
+	}
+	// Only a capped ad's URLs carry the user id, because only they need it.
+	if counters := bidParams.Counters[ad.AdID]; len(counters) > 0 {
+		identity.UserID, identity.Counters = bidParams.UserID, counters
+	}
+	iid, err := json.Marshal(identity)
 	if err != nil {
 		return cache.Bid{}, fmt.Errorf("encoding impression id for ad %s: %w", ad.AdID, err)
 	}

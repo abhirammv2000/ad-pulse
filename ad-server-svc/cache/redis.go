@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -20,6 +21,15 @@ type Store interface {
 	GetCreatives(creativeID string) (*Creative, error)
 	// MGet reads many keys in one round trip. A missing key comes back as "".
 	MGet(keys []string) ([]string, error)
+	// CountSince counts, for each query, the members of a sorted set scored above
+	// Since, all in one round trip. A missing set counts 0.
+	CountSince(queries []CountQuery) ([]int64, error)
+}
+
+// CountQuery asks how many members of the sorted set at Key have a score greater than Since.
+type CountQuery struct {
+	Key   string
+	Since int64
 }
 
 type RedisStore struct {
@@ -58,6 +68,24 @@ func (store *RedisStore) MGet(keys []string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+func (store *RedisStore) CountSince(queries []CountQuery) ([]int64, error) {
+	ctx := context.Background()
+	pipe := store.rdb.Pipeline()
+	commands := make([]*redis.IntCmd, len(queries))
+	for i, query := range queries {
+		// "(" makes the lower bound exclusive: an event exactly one window ago is outside it.
+		commands[i] = pipe.ZCount(ctx, query.Key, "("+strconv.FormatInt(query.Since, 10), "+inf")
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, err
+	}
+	counts := make([]int64, len(queries))
+	for i, command := range commands {
+		counts[i] = command.Val()
+	}
+	return counts, nil
 }
 
 func (store *RedisStore) GetCreatives(creativeID string) (*Creative, error) {

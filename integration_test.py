@@ -9,10 +9,12 @@ ever passed there and failed against any other environment (including a
 freshly created one, since those IDs were never guaranteed to exist).
 """
 
+import copy
 import os
 import requests
 import unittest
 import time
+import uuid
 from datetime import datetime, timedelta
 
 ad_serve_payload = {
@@ -186,6 +188,73 @@ class TestAPI(unittest.TestCase):
                 break
             time.sleep(1)
         self.assertEqual(again.status_code, 204, f"the ad should stop once its budget is spent, got {again.status_code}")
+
+        self.manager.patch(self.ad_manager_host + '/ad', params={'ad_id': ad_id, 'state': 'INACTIVE'})
+
+    def test_a_user_who_has_reached_a_frequency_cap_stops_getting_the_ad(self):
+        publisher_id = self._create_publisher()
+        advertiser_id = self._create_advertiser()
+        ad_unit_id = self._create_ad_unit(publisher_id)
+        campaign_id = self._create_active_campaign(advertiser_id)
+        creative_id = self._create_creative(advertiser_id)
+
+        ad_response = self.manager.post(self.ad_manager_host + '/ad', json={
+            "ad_unit_targeted": [ad_unit_id],
+            "adname": "Integration Test Capped Ad",
+            "adpriority": 1,
+            "adtype": "NON_GUARANTEED",
+            "advertiserid": advertiser_id,
+            "bidinfo": {"bid": 1, "bidType": "CPM"},
+            "campaignid": campaign_id,
+            "creativeid": creative_id,
+            "enddate": FLIGHT_END,
+            "landingurl": "example.com",
+            "startdate": FLIGHT_START,
+            # One render of this ad an hour for each user.
+            "frequencycaps": {"frequencyCapList": [{
+                "entityType": "AD", "eventType": "CSC", "userCap": True,
+                "timeFrame": {"maxCount": 1, "timeWindowType": "HOUR", "value": 1},
+            }]},
+            "createdby": "integration-test",
+            "updatedby": "integration-test",
+        })
+        self.assertEqual(ad_response.status_code, 201, f"ad create failed: {ad_response.status_code} {ad_response.text}")
+        ad_id = ad_response.json()['ad']['adid']
+        activate = self.manager.patch(self.ad_manager_host + '/ad', params={'ad_id': ad_id, 'state': 'ACTIVE'})
+        self.assertEqual(activate.status_code, 200)
+        self._refresh_cache()
+
+        serve_params = {'adunit_id': ad_unit_id, 'publisher_id': publisher_id}
+
+        def serve_to(user_id):
+            payload = copy.deepcopy(ad_serve_payload)
+            if user_id:
+                payload['user']['id'] = user_id
+            else:
+                del payload['user']
+            return requests.post(self.ad_server_host + '/adserve', params=serve_params, json=payload)
+
+        alice, bob = f'alice-{uuid.uuid4().hex}', f'bob-{uuid.uuid4().hex}'
+        first = serve_to(alice)
+        self.assertEqual(first.status_code, 200, f"alice should get the ad: {first.status_code} {first.text}")
+        self.assertEqual(first.json()['bid'][0]['adid'], ad_id)
+        self.assertEqual(requests.get(first.json()['bid'][0]['ext']['renderUrl']).status_code, 200)
+
+        # The render reaches the counters through Pub/Sub and the subscriber.
+        deadline = time.time() + 30
+        while True:
+            again = serve_to(alice)
+            if again.status_code == 204 or time.time() > deadline:
+                break
+            time.sleep(1)
+        self.assertEqual(again.status_code, 204, f"alice has had her one render this hour, got {again.status_code}")
+
+        for_bob = serve_to(bob)
+        self.assertEqual(for_bob.status_code, 200, f"the cap is per user, so bob should still get the ad: {for_bob.status_code}")
+        self.assertEqual(for_bob.json()['bid'][0]['adid'], ad_id)
+
+        anonymous = serve_to(None)
+        self.assertEqual(anonymous.status_code, 204, f"a capped ad can't be checked without a user id, got {anonymous.status_code}")
 
         self.manager.patch(self.ad_manager_host + '/ad', params={'ad_id': ad_id, 'state': 'INACTIVE'})
 

@@ -33,10 +33,38 @@ type fakeStore struct {
 	getErr    error
 	mgetErr   error
 	mgetCalls int
+
+	sets       map[string]map[string]int64 // sorted sets: member to score
+	countErr   error
+	countCalls int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{values: map[string]string{}, hashes: map[string]map[string]string{}}
+	return &fakeStore{values: map[string]string{}, hashes: map[string]map[string]string{}, sets: map[string]map[string]int64{}}
+}
+
+// addEvent puts one member in a sorted set, the way the subscriber records an event.
+func (f *fakeStore) addEvent(key, member string, score int64) {
+	if f.sets[key] == nil {
+		f.sets[key] = map[string]int64{}
+	}
+	f.sets[key][member] = score
+}
+
+func (f *fakeStore) CountSince(queries []cache.CountQuery) ([]int64, error) {
+	f.countCalls++
+	if f.countErr != nil {
+		return nil, f.countErr
+	}
+	counts := make([]int64, len(queries))
+	for i, query := range queries {
+		for _, score := range f.sets[query.Key] {
+			if score > query.Since {
+				counts[i]++
+			}
+		}
+	}
+	return counts, nil
 }
 
 func (f *fakeStore) Get(key string) (string, error) {

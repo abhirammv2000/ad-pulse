@@ -155,6 +155,10 @@ class FrequencyCapTest(unittest.TestCase):
         # The end-to-end test used to send this placeholder, which would mean "never serve".
         self.assert_rejected(self.frame(maxCount=0, value=0), ".timeFrame.maxCount")
 
+    def test_a_count_above_what_the_subscriber_keeps_is_rejected(self):
+        validate_ad(self.frame(maxCount=1000))
+        self.assert_rejected(self.frame(maxCount=1001), ".timeFrame.maxCount")
+
     def test_only_caps_per_user(self):
         self.assert_rejected(self.cap(userCap=False), ".userCap")
 

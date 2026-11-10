@@ -54,6 +54,17 @@ redelivery is a duplicate that copies the totals again without charging twice. D
 totals expire from Redis after 48 hours and overall totals 30 days after they last
 grew. MongoDB keeps them all.
 
+## Frequency cap counters
+
+An event of a capped ad carries the user id and the counters it feeds, such as
+`AD:CSC` for renders of the ad. After the commit it is added to each matching Redis
+sorted set, `fc:<AD or CAMPAIGN>:<id>:<CSC or CLK>:<user id>`, with the bid id as the
+member and the serve time as the score, which the ad server's caps count. Adding the same
+event again changes nothing, so the redelivery after a Redis failure is safe. Each set
+drops events more than a week older than the newest one, keeps at most 1,000, and
+expires eight days after its last write. A week and 1,000 are the longest window and
+the highest count ad-manager-svc accepts, so trimming never changes a cap's answer.
+
 **MongoDB has to be a replica set**, because a standalone server does not run
 transactions. The service checks this when it starts and exits with a message if
 it is not. One member is fine for development, and the Compose stack runs one.

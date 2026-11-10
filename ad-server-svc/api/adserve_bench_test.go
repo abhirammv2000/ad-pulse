@@ -61,6 +61,10 @@ func (l latencyStore) MGet(keys []string) ([]string, error) {
 	l.wait()
 	return l.Store.MGet(keys)
 }
+func (l latencyStore) CountSince(queries []cache.CountQuery) ([]int64, error) {
+	l.wait()
+	return l.Store.CountSince(queries)
+}
 
 // benchWorld builds a cache with the given number of live campaigns, each holding adsPerCampaign ads that all use the
 // same 300x250 creative, and returns a server whose manager lookups are already remembered. With a budget, every ad

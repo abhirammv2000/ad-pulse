@@ -90,6 +90,29 @@ would mean reserving the price when the ad is served and releasing what never re
 If Redis loses the totals, an ad reads as having spent nothing until its next billable
 event writes the true total back from MongoDB, so the same in-flight bound applies.
 
+## Frequency caps
+
+A cap limits how many renders (`CSC`) or clicks (`CLK`) one user may have of an ad, or
+of any ad in a campaign, within a window, such as one render an hour. Caps can be set on
+an ad and on its campaign, and both apply. The user is the request's OpenRTB `user.id`.
+
+The subscriber keeps each user's events in a Redis sorted set per entity and event type,
+`fc:<AD or CAMPAIGN>:<id>:<CSC or CLK>:<user id>`, with the bid id as the member and the
+serve time as the score. After the budget check, the server counts the members inside
+every window of every remaining capped ad with `ZCOUNT`, all in one pipelined round trip,
+and skips the ads the user has reached a cap on. Ads with no caps cost no read, so the
+second round trip only happens when a candidate has a cap.
+
+A capped ad is only sent to a request with a user id, because without one the cap can't
+be checked. A user id longer than 128 characters counts as none. A capped ad's tracking
+URLs carry the user id and the counters its events feed, such as `AD:CSC`, so the
+subscriber only keeps sets for capped ads. Other ads' URLs carry no user id at all.
+
+Like spend, events count when they arrive, so a user who loads several pages within a
+second can see a capped ad a little more often than the cap. If Redis loses the sets,
+the caps start again from zero. That is accepted, because a cap protects the user's
+experience and is not billing.
+
 ## Layout
 
 - `api/adserve.go`: the `/adserve` handler: collects eligible ads across every

@@ -66,6 +66,16 @@ TOTAL_SPEND_TTL = timedelta(days=30)
 # the larger value is right in whatever order the writes arrive, and writing the
 # same value twice changes nothing. The values are whole numbers of nanos, and are
 # compared as text: Lua numbers are doubles, which lose whole numbers past 2^53.
+COUNTER_EVENT = {"render": "CSC", "click": "CLK"}  # how frequency caps name the two event types
+KNOWN_COUNTERS = {f"{entity}:{event}" for entity in ("AD", "CAMPAIGN") for event in ("CSC", "CLK")}
+
+# A user's events for one ad or campaign are kept in a Redis sorted set, scored by
+# serve time, for the ad server's frequency caps. A week is the longest cap window,
+# and ad-manager-svc caps a count at 1,000, so neither limit can change an answer.
+COUNTER_KEEP = timedelta(days=7)
+COUNTER_TTL = timedelta(days=8)
+COUNTER_MAX_EVENTS = 1000
+
 RAISE_SPEND = """
 local current = redis.call('GET', KEYS[1])
 local new = ARGV[1]
@@ -91,6 +101,8 @@ class Engagement:
     served_at: datetime
     bid_type: str
     price_nanos: int
+    user_id: str = ""
+    counters: tuple = ()  # such as ("AD:CSC",): the frequency cap counters this event feeds
 
 
 def parse_event(data):
@@ -121,7 +133,35 @@ def parse_event(data):
     if isinstance(price, bool) or not isinstance(price, int) or price < 0:
         raise BadEvent(f"pricenanos is not a whole number of nanos: {price!r}")
 
-    return Engagement(payload["adid"], payload["campaignid"], payload["bidid"], served_at, bid_type, price)
+    # Only a capped ad's events carry these.
+    user_id = payload.get("userid") or ""
+    counters = payload.get("counters") or []
+    if not isinstance(user_id, str):
+        raise BadEvent("userid is not text")
+    if not isinstance(counters, list) or not all(counter in KNOWN_COUNTERS for counter in counters):
+        raise BadEvent(f"counters are not known counter names: {counters!r}")
+
+    return Engagement(
+        payload["adid"], payload["campaignid"], payload["bidid"], served_at, bid_type, price, user_id, tuple(counters)
+    )
+
+
+def counter_keys(event_type, event):
+    """The sorted sets this event goes into: one per counter of its type, for its user.
+
+    The names match the ones the ad server counts from, such as
+    fc:AD:<ad id>:CSC:<user id> for this user's renders of the ad.
+    """
+    if not event.user_id:
+        return []
+    code = COUNTER_EVENT[event_type]
+    keys = []
+    for counter in event.counters:
+        entity, counter_event = counter.split(":")
+        if counter_event == code:
+            entity_id = event.campaign_id if entity == "CAMPAIGN" else event.ad_id
+            keys.append(f"fc:{entity}:{entity_id}:{code}:{event.user_id}")
+    return keys
 
 
 def charge(event_type, event):
@@ -213,7 +253,28 @@ def record_event(client, database, redis_client, event_type, event, now):
         spent = {row["_id"]: row["nanos"] for row in database.spend.find({"_id": {"$in": ids}})} if ids else {}
 
     copy_spend_to_redis(redis_client, spent, dict(totals))
+    add_to_counters(redis_client, counter_keys(event_type, event), event)
     return result
+
+
+def add_to_counters(redis_client, keys, event):
+    """Add the event to its user's frequency cap counters, and drop what no cap can reach.
+
+    The bid id is the member and the serve time the score, so writing the same event
+    again changes nothing. Like the spend copy, a failure here nacks the message, and
+    the redelivery, a duplicate, writes it again.
+    """
+    if not keys:
+        return
+    served = int(event.served_at.timestamp())
+    oldest = served - int(COUNTER_KEEP.total_seconds())
+    pipe = redis_client.pipeline(transaction=False)
+    for key in keys:
+        pipe.zadd(key, {event.bid_id: served})
+        pipe.zremrangebyscore(key, "-inf", f"({oldest}")
+        pipe.zremrangebyrank(key, 0, -(COUNTER_MAX_EVENTS + 1))
+        pipe.expire(key, int(COUNTER_TTL.total_seconds()))
+    pipe.execute()
 
 
 def copy_spend_to_redis(redis_client, spent, ttls):

@@ -29,8 +29,8 @@ def event_body(ad_id='AD7', bid_id='B1', served_at=NOW, **extra):
     return body
 
 
-def engagement(ad_id='AD1', bid_id='B1', bid_type='', price=0, served_at=NOW, campaign_id='C1'):
-    return app.Engagement(ad_id, campaign_id, bid_id, served_at, bid_type, price)
+def engagement(ad_id='AD1', bid_id='B1', bid_type='', price=0, served_at=NOW, campaign_id='C1', user_id='', counters=()):
+    return app.Engagement(ad_id, campaign_id, bid_id, served_at, bid_type, price, user_id, tuple(counters))
 
 
 def message_with(payload):
@@ -47,6 +47,14 @@ class ParseEventTest(unittest.TestCase):
     def test_an_ad_with_no_bid_has_no_price(self):
         event = app.parse_event(json.dumps(event_body()).encode())
         self.assertEqual((event.bid_type, event.price_nanos), ('', 0))
+
+    def test_a_capped_ad_names_its_user_and_counters(self):
+        event = app.parse_event(json.dumps(event_body(userid='alice', counters=['AD:CSC', 'CAMPAIGN:CLK'])).encode())
+        self.assertEqual((event.user_id, event.counters), ('alice', ('AD:CSC', 'CAMPAIGN:CLK')))
+
+    def test_an_uncapped_ad_has_no_user_or_counters(self):
+        event = app.parse_event(json.dumps(event_body()).encode())
+        self.assertEqual((event.user_id, event.counters), ('', ()))
 
     def test_anything_that_can_never_be_counted_is_a_bad_event(self):
         bad = [
@@ -65,6 +73,10 @@ class ParseEventTest(unittest.TestCase):
             json.dumps(event_body(pricenanos=1.5)).encode(),
             json.dumps(event_body(pricenanos='1000')).encode(),
             json.dumps(event_body(bidtype=7)).encode(),
+            json.dumps(event_body(userid=7)).encode(),
+            json.dumps(event_body(counters='AD:CSC')).encode(),
+            json.dumps(event_body(counters=['AD:VIEW'])).encode(),
+            json.dumps(event_body(counters=['ADVERTISER:CSC'])).encode(),
         ]
         for data in bad:
             with self.subTest(data=data), self.assertRaises(app.BadEvent):
@@ -89,6 +101,16 @@ class ChargeTest(unittest.TestCase):
         served = datetime(2026, 11, 7, 23, 59, 30, tzinfo=timezone.utc)
         ids = [spend_id for spend_id, _ in app.spend_totals(engagement(served_at=served))]
         self.assertEqual(ids, ['ad:AD1', 'ad:AD1:2026-11-07', 'campaign:C1', 'campaign:C1:2026-11-07'])
+
+
+class CounterKeysTest(unittest.TestCase):
+    def test_an_event_goes_into_the_counters_of_its_own_type(self):
+        event = engagement(user_id='alice', counters=['AD:CSC', 'CAMPAIGN:CSC', 'CAMPAIGN:CLK'])
+        self.assertEqual(app.counter_keys('render', event), ['fc:AD:AD1:CSC:alice', 'fc:CAMPAIGN:C1:CSC:alice'])
+        self.assertEqual(app.counter_keys('click', event), ['fc:CAMPAIGN:C1:CLK:alice'])
+
+    def test_no_user_means_no_counters(self):
+        self.assertEqual(app.counter_keys('render', engagement(counters=['AD:CSC'])), [])
 
 
 class TooOldTest(unittest.TestCase):
@@ -250,12 +272,8 @@ class ExactlyOnceTest(MongoTestCase):
         app.prepare_database(self.database)
 
 
-@unittest.skipUnless(
-    os.getenv('MONGODB_TEST_URI') and os.getenv('REDIS_TEST_URL'),
-    'set MONGODB_TEST_URI and REDIS_TEST_URL to run these',
-)
-class SpendTest(MongoTestCase):
-    """Spend is added in the transaction and copied to Redis. Each test uses its own ad and campaign ids."""
+class RedisTestCase(MongoTestCase):
+    """MongoDB and a real Redis. Each test uses its own ad and campaign ids, so nothing needs flushing."""
 
     @classmethod
     def setUpClass(cls):
@@ -273,6 +291,14 @@ class SpendTest(MongoTestCase):
         super().setUp()
         self.redis = self.real_redis
         self.ad, self.campaign = f'AD{uuid.uuid4().hex[:8]}', f'C{uuid.uuid4().hex[:8]}'
+
+
+@unittest.skipUnless(
+    os.getenv('MONGODB_TEST_URI') and os.getenv('REDIS_TEST_URL'),
+    'set MONGODB_TEST_URI and REDIS_TEST_URL to run these',
+)
+class SpendTest(RedisTestCase):
+    """Spend is added in the transaction and copied to Redis."""
 
     def cpm_render(self, bid_id='B1', price=1_000_000):
         return self.record('render', engagement(self.ad, bid_id, 'CPM', price, campaign_id=self.campaign))
@@ -360,6 +386,65 @@ class SpendTest(MongoTestCase):
 
         want = sum(1_000 + n for n in range(threads))
         self.assertEqual(self.spent(), ([want] * 4, [want] * 4))
+
+
+@unittest.skipUnless(
+    os.getenv('MONGODB_TEST_URI') and os.getenv('REDIS_TEST_URL'),
+    'set MONGODB_TEST_URI and REDIS_TEST_URL to run these',
+)
+class CounterTest(RedisTestCase):
+    """A capped ad's events go into its user's sorted sets, which the ad server's caps count."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = f'u{uuid.uuid4().hex[:8]}'
+        self.key = f'fc:AD:{self.ad}:CSC:{self.user}'
+
+    def capped_render(self, bid_id='B1', served_at=NOW):
+        event = engagement(self.ad, bid_id, campaign_id=self.campaign, served_at=served_at,
+                           user_id=self.user, counters=['AD:CSC'])
+        return self.record('render', event)
+
+    def test_a_render_is_recorded_at_its_serve_time(self):
+        self.capped_render()
+        self.assertEqual(self.redis.zrange(self.key, 0, -1, withscores=True), [('B1', NOW.timestamp())])
+
+    def test_a_replay_is_recorded_once(self):
+        for _ in range(3):
+            self.capped_render()
+        self.assertEqual(self.redis.zcard(self.key), 1)
+
+    def test_each_served_bid_is_its_own_event(self):
+        for bid_id in ('B1', 'B2', 'B3'):
+            self.capped_render(bid_id)
+        self.assertEqual(self.redis.zcard(self.key), 3)
+
+    def test_events_older_than_a_week_are_dropped(self):
+        self.redis.zadd(self.key, {'ancient': NOW.timestamp() - 7 * 86400 - 1, 'week_old': NOW.timestamp() - 7 * 86400})
+        self.capped_render()
+        self.assertEqual(sorted(self.redis.zrange(self.key, 0, -1)), ['B1', 'week_old'])
+
+    def test_at_most_1000_events_are_kept_and_the_oldest_go_first(self):
+        self.redis.zadd(self.key, {f'old{n}': NOW.timestamp() - 1000 + n for n in range(1005)})
+        self.capped_render()
+        self.assertEqual(self.redis.zcard(self.key), 1000)
+        self.assertIsNone(self.redis.zscore(self.key, 'old0'))
+        self.assertIsNotNone(self.redis.zscore(self.key, 'B1'))
+
+    def test_a_counter_expires_a_day_after_the_longest_window(self):
+        self.capped_render()
+        self.assertTrue(7 * 86400 < self.redis.ttl(self.key) <= 8 * 86400)
+
+    def test_if_redis_fails_the_redelivery_records_the_event(self):
+        broken = Mock()
+        broken.pipeline.side_effect = ConnectionError('redis is down')
+        self.redis = broken
+        with self.assertRaises(ConnectionError):
+            self.capped_render()
+
+        self.redis = self.real_redis
+        self.assertEqual(self.capped_render(), 'duplicate')
+        self.assertEqual(self.redis.zcard(self.key), 1)
 
 
 if __name__ == '__main__':

@@ -97,6 +97,24 @@ func (server *Server) adserve(ctx *gin.Context) {
 		return
 	}
 
+	userID := userOf(reqBody)
+	activeAds, err = server.withinCaps(activeAds, liveCampaigns, userID)
+	if err != nil {
+		internalError(ctx, err)
+		return
+	}
+
+	// The events of a capped ad must feed this user's counters, so its tracking
+	// URLs say which ones.
+	counters := map[string][]string{}
+	if userID != "" {
+		for _, ad := range activeAds {
+			if caps := capsOf(ad, liveCampaigns); len(caps) > 0 {
+				counters[ad.AdID] = countersFor(caps)
+			}
+		}
+	}
+
 	if len(activeAds) == 0 {
 		ctx.JSON(http.StatusNoContent, nil)
 		return
@@ -107,6 +125,8 @@ func (server *Server) adserve(ctx *gin.Context) {
 		RankedAds:   &rankedAds,
 		RequestBody: reqBody,
 		AdUnitId:    reqParams.AdUnitId,
+		UserID:      userID,
+		Counters:    counters,
 	})
 	if err != nil {
 		log.Printf("no bid for ad unit %s: %v", reqParams.AdUnitId, err)
