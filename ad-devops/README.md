@@ -70,10 +70,13 @@ Google credentials for Pub/Sub (set `serviceAccount.annotations` for Workload Id
 
 ## Deploy to GKE
 
-This is the procedure that was run on 2026-11-10 (results in
-[docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run)). It creates billable
-resources, roughly $0.25 an hour while it is up, so tear it down when you are done. Set
-`PROJECT_ID`, `REGION` (us-central1 here) and `TAG` (the commit you built) first.
+This is the procedure that was run on 2026-11-10, and again on 2026-11-11 from the commit it
+describes (results in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run)). It
+creates billable resources, roughly $0.25 an hour while it is up (list prices, not a bill), so
+tear it down when you are done. You need a Google Cloud project with billing, the Cloud SQL
+Admin and Service Networking APIs enabled, and `gcloud`, `docker`, `kubectl`, `helm` and the
+`gke-gcloud-auth-plugin` installed. Set `PROJECT_ID`, `PROJECT_NUMBER`, `REGION` (us-central1
+here) and `TAG` (the commit you built) first, and pick `DB_PASSWORD` and `MANAGER_API_KEY`.
 
 ```
 # 1. The images, in Artifact Registry.
@@ -143,5 +146,7 @@ member, so it has no failover.
 uninstall`, the MongoDB StatefulSet and its disk (`kubectl delete -f ad-devops/gke/mongo.yaml`
 and `kubectl delete pvc --all -n adpulse-data`), the cluster, the Cloud SQL and Redis
 instances, the Pub/Sub topics and subscriptions, the Artifact Registry repository, and last
-the VPC peering and the `adpulse-psa` range. The peering can refuse to delete for a while after
-Cloud SQL and Redis are gone, because Google releases its side later. It costs nothing.
+the `adpulse-psa` range and the VPC peering. Deleting the Redis instance can take over ten
+minutes. The peering can refuse to delete for a long time after Cloud SQL and Redis are gone
+(it was still refused 25 minutes later), because Google releases its side later. It costs
+nothing, and creating the range again reuses it.

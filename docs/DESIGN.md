@@ -119,8 +119,8 @@ write conflict, so the callback only writes inside the transaction.
 
 **Why two steps, a change found by the load test.** The first build did the dedupe, the count
 and the spend in one transaction per event. Every event of a busy ad then updated the same
-few documents, so concurrent events conflicted and retried, about 4 attempts each, and one
-hot ad could be counted at only 65 events a second. Recording plus folding takes the conflict
+few documents, so concurrent events conflicted and retried, about 3 to 4 attempts each, and one
+hot ad was counted at about 120 events a second, and as low as 11 in the worst run. Recording plus folding takes the conflict
 out of the path every event goes through: an insert never conflicts with another event's
 insert, and a fold of 1,000 events touches each total once. Section 10 has both
 measurements. Records written by the first build have no `folded` field, so a fold never
@@ -177,8 +177,9 @@ events in flight ~= the ad's serve rate x (time until the render or click + pipe
 
 `subscriber_serve_to_count_seconds` measures the pipeline delay. The bound only holds while
 the subscriber keeps up: section 10 has a load test where the first build fell behind and
-spent 368% over budget, and the same test after the change, at 7.9%. A reservation at serve
-time would bring overspend near zero whatever the delay.
+spent 154% to 272% over budget, the same test after the change at 2% to 12%, and a cloud test
+where one subscriber replica could not keep up (94% to 120% over) and eight could (about 1%).
+A reservation at serve time would bring overspend near zero whatever the delay.
 
 ## 6. Frequency caps
 
@@ -286,60 +287,87 @@ project's scale and too much to ignore above it. The levers, in order: turn on P
 exactly-once delivery so the inbox only has to cover replays, shorten the windows, or shard
 the inbox by event id.
 
-Measured with `loadtest.py` against the Compose stack on one laptop: 16 threads ask for one
-CPM ad ($1 CPM, $1 total budget, so 1,000 renders) and render every ad they are served, until
-it stops serving. The first build, counting each event in its own transaction, then the
-same test after the change to recording and folding:
+Measured with `loadtest.py` against the Compose stack on one laptop (Docker with 2 CPUs): 16
+threads ask for one CPM ad ($1 CPM, $1 total budget, so 1,000 renders) and render every ad
+they are served, until it stops serving. The first build, counting each event in its own
+transaction (3 runs), then the same test after the change to recording and folding (5 runs).
+Each version ran on a freshly started stack. These numbers vary a lot from run to run, so
+every run is shown:
 
 | | one transaction per event | record, then fold |
 |---|---|---|
-| bids before the budget stopped the ad | 4,678 over 23.9 s, 196 a second | 1,079 over 4.8 s, 226 a second |
-| latency, every request | p50 57 ms, p95 74 ms, p99 88 ms | p50 52 ms, p95 63 ms, p99 67 ms |
-| renders sent and counted | 4,678 and 4,678 | 1,079 and 1,079 |
-| serve to counted (`subscriber_serve_to_count_seconds`) | mean 28 s, the slowest about 60 s | mean 0.8 s, all within 2 s |
-| spent against the $1 budget | $4.68, **368% over** | $1.079, **7.9% over** |
+| spent against the $1 budget | $2.54, $3.09, $3.72: **154% to 272% over** | $1.02, $1.03, $1.05, $1.06, $1.12: **1.7% to 12.0% over**, median 5.0% |
+| bids a second | 161 to 203 | 131 to 227 (17 in the disturbed run below) |
+| mean serve to counted (`subscriber_serve_to_count_seconds`) | 9 s and 36 s in the two runs that started with no backlog | 0.80 to 0.87 s in four runs |
+| renders sent and counted | equal in every run | equal in every run |
 
-Latency is mostly the Python client and Docker networking on one laptop. In both runs every
-render was counted exactly once.
+One run of the new version was disturbed: the manager answered 727 requests with HTTP 500,
+the run served only 17 bids a second, the mean delay was 13.7 s and the budget ended 12.0%
+over. I did not find the cause, and the run is included. Latency is mostly the Python client
+and Docker networking on one laptop. Every render was counted exactly once in every run.
 
 **What the first run found.** The overspend was far past the bound because the delay grew
-to a minute: the subscriber could not keep up. Every render of the one ad updated the same
-spend documents and report row inside its own transaction, so the worker threads kept
-hitting write conflicts and retrying. Measured directly against the same MongoDB, 2,000
-billable renders from 10 threads, before and after the change:
+to tens of seconds: the subscriber could not keep up. Every render of the one ad updated the
+same spend documents and report row inside its own transaction, so the worker threads kept
+hitting write conflicts and retrying. Measured directly against the same MongoDB with
+`adpulse-engagement-subscriber-svc/measure_counting.py` (2,000 billable renders from 10
+threads, the fold running in its own process as in production), five rounds with the two
+versions run in turn so slow drift hits both. Median, with the range in brackets:
 
 | | one transaction per event | record, then fold |
 |---|---|---|
-| all for one ad | 65 events a second, 4.23 transaction attempts each | 1,711 events a second, recorded to counted |
-| spread over 2,000 ads | 280 events a second, 1.00 attempts each | 1,251 events a second |
+| all for one ad | 118 events a second (11 to 165), 2.9 to 4.5 transaction attempts each | 1,204 events a second (1,194 to 1,241), about 10 times faster |
+| spread over 2,000 ads | 372 events a second (264 to 414), 1.00 attempts each | 1,053 events a second (846 to 1,207) |
 
-A busy ad is now the fast case, because a batch touches each of its totals once. After the
-change the overspend matches the bound: 226 bids a second with under a second of delay
-allows a couple of hundred renders in flight, and 79 went over. The totals came out exact in
-every run.
+The slowest one-transaction run took 181 seconds for 2,000 events: when the conflicts pile up
+the rate collapses, which is why the range is so wide. A busy ad is now the fast case,
+because a batch touches each of its totals once. After the change the overspend is within
+the bound: at 130 to 227 bids a second with a delay of about 0.8 s, the bound allows around
+100 to 200 renders in flight, and the four undisturbed runs went 17 to 64 renders over. The
+totals came out exact in every run (the report count and the spend, to the nano).
 
 The first run also found that a manager answering 500 (its database dropped connections
 under the load) was reported by the ad server as "publisher not found". It is now a 502.
 
-**The same test on Google Cloud.** The chart was installed on GKE (two e2-standard-2 nodes) with
-Cloud SQL Postgres, Memorystore Redis, real Pub/Sub reached through Workload Identity, and
-MongoDB as a one-member replica set on a persistent disk. `integration_test.py` and
-`loadtest.py` ran from a laptop against the public addresses, so the latencies include the
-internet and say little about the services. It was torn down afterwards and is not running.
+**The same tests on Google Cloud.** The chart was installed on GKE (two e2-standard-2 nodes)
+from this repository's `main`, following the steps in
+[ad-devops/README.md](../ad-devops/README.md#deploy-to-gke), with Cloud SQL Postgres,
+Memorystore Redis, real Pub/Sub reached through Workload Identity, and MongoDB as a
+one-member replica set on a persistent disk. The tests ran from a laptop against the public
+addresses unless it says otherwise. The cluster was torn down afterwards and is not running.
+What happened, including what went wrong:
 
-| | $1 budget | $5 budget, every subscriber pod force-killed 15 s in |
-|---|---|---|
-| bids a second | 108 | 104 |
-| latency, every request | p50 59 ms, p95 79 ms, p99 132 ms | p50 64 ms, p95 109 ms, p99 198 ms |
-| renders sent and counted | 1,022 and 1,022 | 5,029 and 5,029 |
-| spent against the budget | $1.022, 2.2% over | $5.017, 0.3% over |
+- `helm test` passed. `integration_test.py` passed 3 of 3 twice, but its first attempt, right
+  after the second install, failed: two tests hit connection timeouts to the manager's load
+  balancer. The manager answered 10 of 10 health checks straight after. I did not find the cause.
+- **Load test, $1 budget, three runs:** 106 to 112 bids a second, p50 62 to 66 ms, p95 83 to
+  106 ms, overspend 51.3% (the first run), 2.0% and 2.6%.
+- **The 51.3% was most likely subscriber capacity.** With the subscriber pinned to one replica, three runs
+  overspent by 93.5%, 116.6% and 119.6%. With eight replicas they overspent by 1.7%, 1.1% and
+  1.2%. A Python subscriber is CPU bound, so the autoscaler needs time to add replicas, and
+  until it does the spend totals trail the real spend.
+- **Latency is not the network.** From a pod inside the cluster, one thread sees p50 33 ms
+  (p95 47 ms), and 16 threads see p50 56 to 66 ms and p95 136 to 176 ms. The 33 ms is the
+  per-campaign Redis lookups already named as the next bottleneck: the cache had 25 live
+  campaigns left over from earlier test runs, and a Redis round trip from a pod takes 1.2 ms
+  (p50), so 25 x 1.2 ms is about 30 ms. The 16-thread figure includes the Python client's own
+  queueing.
+- **0.4% to 0.8% of requests answered 500.** The ad server logs `context deadline exceeded`
+  at about 100 ms, which is the Redis deadline (`REDIS_TIMEOUT`): a slow Redis call gives an
+  error, not a guess.
+- **Killing every subscriber pod while bids were flowing** lost nothing. The load test sent
+  1,860 renders and read 1,813 counted when it stopped waiting, 1,860 thirty seconds later,
+  and still 1,860 two minutes after that, so none were lost or counted twice. Pub/Sub
+  redelivered the messages the dead pods had not acknowledged (the ack deadline is 60
+  seconds). An earlier deployment of the same code gave the same result with a $5 budget:
+  5,029 sent, 5,017 counted at first, 5,029 after. A test that checks counts after a failure
+  has to wait longer than the ack deadline.
+- **The load test depends on the time of day.** The campaign it creates has a $10 daily budget
+  that the ad server paces over the UTC day, with an hour of headroom. At 01:55 UTC that
+  allows about $1.22, and a $5 ad stopped at $1.23 as designed. A $1 budget can only be reached
+  after about 02:00 UTC and a $5 budget after about 11:00 UTC.
 
-The overspend is smaller than on the laptop because the cloud stack serves fewer bids a
-second, so fewer renders are in flight when the budget runs out. After the kill the count read
-5,017 when the load test stopped waiting, and reached 5,029 once Pub/Sub redelivered the
-messages the dead pods had not acknowledged (the ack deadline is 60 seconds). No render was
-lost or counted twice. A test that checks counts after a failure has to wait longer than the
-ack deadline. This is one run on small machines, not a capacity figure.
+This is small machines and a Python load generator, not a capacity figure.
 
 ## 11. Tests that prove the guarantees
 

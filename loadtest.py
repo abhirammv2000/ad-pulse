@@ -10,6 +10,13 @@ the budget: the in-flight overspend the ad server README describes.
       AD_MANAGER_API_KEY=local-dev-api-key python loadtest.py
 
 THREADS, BUDGET (USD) and MAX_SECONDS change the defaults below.
+
+Two things change the result. The campaign it creates has a $10 daily budget, which the ad
+server paces over the UTC day with an hour of headroom, so early in the UTC day the campaign
+may be allowed to spend less than BUDGET and the ad stops at that smaller amount (about $1.22
+at 01:55 UTC). And every run leaves its campaign behind, so the ad server walks more
+campaigns on each request and latency creeps up. The "latency" line is mostly this and the
+Python client, not the ad server's own work.
 """
 
 import copy

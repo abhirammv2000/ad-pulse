@@ -34,10 +34,11 @@ than 1,000 events, the loop waits half a second.
 
 **Why two steps.** The first version counted each event in its own transaction.
 Every render of a busy ad then updated the same few documents, the transactions
-kept conflicting and retrying, and one hot ad was counted at about 65 events a
-second, while it rendered 200 a second. Recording plus folding counts the same hot
-ad at about 1,700 a second, because a batch touches each total once. The
-measurements are in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
+kept conflicting and retrying, and one hot ad was counted at about 120 events a
+second (as low as 11 in the worst run), while it rendered 200 a second. Recording plus
+folding counts the same hot ad at about 1,200 a second, because a batch touches each total
+once. `measure_counting.py` in this folder is the test, and the measurements are in
+[docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
 
 Records written by the first version have no `folded` field, so they are never
 folded again: they were counted when they were written.

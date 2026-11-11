@@ -91,11 +91,14 @@ would mean reserving the price when the ad is served and releasing what never re
 **That bound assumes the subscriber keeps up, and the load test checks it.** `loadtest.py`
 serves one CPM ad with a $1 budget as fast as 16 threads can ask, and renders every ad it
 gets. Against the first subscriber, which counted each event in its own transaction, the
-ad spent $4.68: every render of one ad updated the same spend documents, the transactions
-kept conflicting, the subscriber fell to about 65 events a second, and the delay grew to a
-minute. The subscriber now records each event on its own and folds them into the totals in
-batches. The same test spends $1.079, 7.9% over, with under a second from serve to counted.
-The results are in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
+ad spent between $2.54 and $3.72 in three runs: every render of one ad updated the same
+spend documents, the transactions kept conflicting, the subscriber fell to about 120 events
+a second, and the delay grew to tens of seconds. The subscriber now records each event on
+its own and folds them into the totals in batches. The same test spends $1.02 to $1.12 (2%
+to 12% over, median 5%) in five runs, with under a second from serve to counted. How far it
+overspends depends on how fast the subscriber folds: in a cloud test, one subscriber replica
+overspent by 94% to 120% and eight by about 1%. The results, every run and the run that went
+wrong, are in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
 
 If Redis loses the totals, an ad reads as having spent nothing until its next billable
 event writes the true total back from MongoDB, so the same in-flight bound applies.
