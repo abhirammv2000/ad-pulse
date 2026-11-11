@@ -1,0 +1,28 @@
+# Values for GKE. Images come from Artifact Registry, Pub/Sub is the real service reached through Workload
+# Identity, Postgres is Cloud SQL and Redis is Memorystore. Credentials and public URLs are passed with --set-string.
+ad_manager_url: http://ad-manager-svc:5000
+
+adpulse:
+  namespace:
+    name: adpulse
+  secrets:
+    mongodbUri: mongodb://mongodb-0.mongodb.adpulse-data.svc.cluster.local:27017/?replicaSet=rs0
+    redisPort: "6379"
+    gcpProjectId: PROJECT_ID
+    pubsubEmulatorHost: ""
+  ad_manager_svc:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/ad-manager-svc, tag: TAG}
+  ad_manager_frontend:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/ad-manager-frontend, tag: TAG}
+  ad_server_svc:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/ad-server-svc, tag: TAG}
+  adpulse_engagement_svc:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/adpulse-engagement-svc, tag: TAG}
+  adpulse_engagement_subscriber_svc:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/adpulse-engagement-subscriber-svc, tag: TAG}
+  ad_refresh_cache_svc:
+    image: {repository: us-central1-docker.pkg.dev/PROJECT_ID/adpulse/ad-refresh-cache-svc, tag: TAG}
+
+# Ten replicas at most is plenty for two small nodes.
+hpa:
+  maxReplicas: 10

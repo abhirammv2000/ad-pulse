@@ -321,6 +321,26 @@ every run.
 The first run also found that a manager answering 500 (its database dropped connections
 under the load) was reported by the ad server as "publisher not found". It is now a 502.
 
+**The same test on Google Cloud.** The chart was installed on GKE (two e2-standard-2 nodes) with
+Cloud SQL Postgres, Memorystore Redis, real Pub/Sub reached through Workload Identity, and
+MongoDB as a one-member replica set on a persistent disk. `integration_test.py` and
+`loadtest.py` ran from a laptop against the public addresses, so the latencies include the
+internet and say little about the services. It was torn down afterwards and is not running.
+
+| | $1 budget | $5 budget, every subscriber pod force-killed 15 s in |
+|---|---|---|
+| bids a second | 108 | 104 |
+| latency, every request | p50 59 ms, p95 79 ms, p99 132 ms | p50 64 ms, p95 109 ms, p99 198 ms |
+| renders sent and counted | 1,022 and 1,022 | 5,029 and 5,029 |
+| spent against the budget | $1.022, 2.2% over | $5.017, 0.3% over |
+
+The overspend is smaller than on the laptop because the cloud stack serves fewer bids a
+second, so fewer renders are in flight when the budget runs out. After the kill the count read
+5,017 when the load test stopped waiting, and reached 5,029 once Pub/Sub redelivered the
+messages the dead pods had not acknowledged (the ack deadline is 60 seconds). No render was
+lost or counted twice. A test that checks counts after a failure has to wait longer than the
+ack deadline. This is one run on small machines, not a capacity figure.
+
 ## 11. Tests that prove the guarantees
 
 - **Exactly once:** the subscriber's tests run against a real replica set in CI. A replay
@@ -340,17 +360,17 @@ under the load) was reported by the ad server as "publisher not found". It is no
 
 ## 12. Delivery
 
-Each step was one pull request, complete and tested by itself.
+Each step was built, tested and merged by itself, in this order.
 
-| PR | Contents |
+| Step | Contents |
 |---|---|
-| #6 | Validation of the JSON fields the ad server reads, dashboard fixes, money read exactly, one bad campaign no longer fails every request |
-| #7 | Exactly-once counting: bid id in the iid, age limits, the transactional inbox, MongoDB as a replica set |
-| #8 | Budgets and pacing |
-| #9 | Frequency caps |
-| #10 | Ranking by price, the heap, dates parsed once, Redis deadlines |
-| #11 | Metrics, the load test and this document |
-| #12 | Recording and folding, after the load test showed a busy ad outrunning per-event transactions |
+| 1 | Validation of the JSON fields the ad server reads, dashboard fixes, money read exactly, one bad campaign no longer fails every request |
+| 2 | Exactly-once counting: bid id in the iid, age limits, the transactional inbox, MongoDB as a replica set |
+| 3 | Budgets and pacing |
+| 4 | Frequency caps |
+| 5 | Ranking by price, the heap, dates parsed once, Redis deadlines |
+| 6 | Metrics, the load test and this document |
+| 7 | Recording and folding, after the load test showed a busy ad outrunning per-event transactions |
 
 ## 13. What is not built
 
