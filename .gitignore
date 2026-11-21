@@ -33,3 +33,6 @@ main
 
 # Misc
 test.sh
+
+# Private design notes
+docs/DESIGN.md
