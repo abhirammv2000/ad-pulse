@@ -16,8 +16,8 @@ Counting happens in two steps:
    transaction that marks it, so it is counted exactly once.
 
 Counting each event in its own transaction, the first design, had every event
-of a busy ad update the same few documents, and they kept conflicting. The load
-test in docs/DESIGN.md shows the difference.
+of a busy ad update the same few documents, and they kept conflicting.
+measure_counting.py in this folder shows the difference.
 
 Counts land in the `reports` collection, which the ad manager's /reports
 endpoints serve. A billable event (a render of a CPM ad, a click of a CPC ad)

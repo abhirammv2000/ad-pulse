@@ -71,7 +71,7 @@ Google credentials for Pub/Sub (set `serviceAccount.annotations` for Workload Id
 ## Deploy to GKE
 
 This is the procedure that was run on 2026-11-10, and again on 2026-11-11 from the commit it
-describes (results in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run)). It
+describes. It
 creates billable resources, roughly $0.25 an hour while it is up (list prices, not a bill), so
 tear it down when you are done. You need a Google Cloud project with billing, the Cloud SQL
 Admin and Service Networking APIs enabled, and `gcloud`, `docker`, `kubectl`, `helm` and the

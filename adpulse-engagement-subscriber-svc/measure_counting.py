@@ -5,7 +5,7 @@ MODE=new is for this code: record_event stores each event in this process, and
 fold_forever runs in a separate process, as in production.
 MODE=old only works on the first design, commit d852d51, where record_event counted each
 event in its own transaction. It is how the "one transaction per event" numbers in
-docs/DESIGN.md were measured.
+the subscriber README were measured.
 SHAPE=one: every render is for the same ad. SHAPE=many: every render is for a different ad.
 The time runs from the first event until the last one is counted in the reports. It also
 checks that the report count and the ad's spend came out exact.

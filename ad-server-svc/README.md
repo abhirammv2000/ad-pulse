@@ -97,8 +97,7 @@ a second, and the delay grew to tens of seconds. The subscriber now records each
 its own and folds them into the totals in batches. The same test spends $1.02 to $1.12 (2%
 to 12% over, median 5%) in five runs, with under a second from serve to counted. How far it
 overspends depends on how fast the subscriber folds: in a cloud test, one subscriber replica
-overspent by 94% to 120% and eight by about 1%. The results, every run and the run that went
-wrong, are in [docs/DESIGN.md](../docs/DESIGN.md#10-capacity-and-a-measured-run).
+overspent by 94% to 120% and eight by about 1%.
 
 If Redis loses the totals, an ad reads as having spent nothing until its next billable
 event writes the true total back from MongoDB, so the same in-flight bound applies.
